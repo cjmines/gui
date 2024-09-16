@@ -1,0 +1,3 @@
+[submodule "window"]
+	path = window
+	url = git@github.com:cpp-toolbox/window.git
