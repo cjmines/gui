@@ -1,3 +1,6 @@
 [submodule "window"]
 	path = src/window
 	url = git@github.com:cpp-toolbox/window.git
+[submodule "scripts"]
+	path = scripts
+	url = git@github.com:cpp-toolbox/scripts.git
