@@ -1,143 +1,163 @@
 #include <glad/glad.h>
+#include "vertex_geometry/vertex_geometry.hpp"
 #include <GLFW/glfw3.h>
-#include "window/window.hpp"
-
-#include <cstdio>
-#include <cstdlib>
 #include <iostream>
+#include <iomanip> // For formatting output
+#include <vector>
+#include <glm/vec3.hpp> // Ensure you include the GLM library for glm::vec3
 
 unsigned int SCREEN_WIDTH = 640;
 unsigned int SCREEN_HEIGHT = 480;
 
+glm::vec3 center(0.0f, 0.0f, 0.0f);
+float width = 2.0f;
+float height = 2.0f;
+int num_rectangles_x = 5;
+int num_rectangles_y = 5;
+float spacing = 0.1f;
+
+std::vector<glm::vec3> original_colors = {
+    {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},
+    {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
+    {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f},
+    {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f},
+    {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}};
+
+// Vertex Shader source code
 static const char *vertex_shader_text = "#version 330 core\n"
                                         "layout (location = 0) in vec3 aPos;\n"
+                                        "layout (location = 1) in vec3 aColor;\n"
+                                        "out vec3 ourColor;\n"
                                         "void main()\n"
                                         "{\n"
-                                        "   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
+                                        "   gl_Position = vec4(aPos, 1.0);\n"
+                                        "   ourColor = aColor;\n"
                                         "}\0";
 
+// Fragment Shader source code
 static const char *fragment_shader_text = "#version 330 core\n"
+                                          "in vec3 ourColor;\n"
                                           "out vec4 FragColor;\n"
                                           "void main()\n"
                                           "{\n"
-                                          "   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
+                                          "   FragColor = vec4(ourColor, 1.0f);\n"
                                           "}\n\0";
 
-static void error_callback(int error, const char *description) { fprintf(stderr, "Error: %s\n", description); }
+bool is_point_in_rectangle(const Rectangle &rect, const glm::vec3 &point) {
+    float half_width = rect.width / 2.0f;
+    float half_height = rect.height / 2.0f;
 
-static void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    float left_bound = rect.center.x - half_width;
+    float right_bound = rect.center.x + half_width;
+    float bottom_bound = rect.center.y - half_height;
+    float top_bound = rect.center.y + half_height;
+
+    return (point.x >= left_bound && point.x <= right_bound && point.y >= bottom_bound && point.y <= top_bound);
+}
+
+static double mouse_x, mouse_y;
+
+/**
+ * @brief GLFW mouse callback function to get mouse position in screen coordinates.
+ */
+static void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
+    mouse_x = xpos;
+    mouse_y = ypos;
+}
+
+/**
+ * @brief Converts screen-space mouse coordinates to Normalized Device Coordinates (NDC).
+ *
+ * @param mouse_x The x-coordinate of the mouse in screen space (pixels).
+ * @param mouse_y The y-coordinate of the mouse in screen space (pixels).
+ * @param screen_width The width of the screen in pixels.
+ * @param screen_height The height of the screen in pixels.
+ * @return A pair of floats representing the mouse coordinates in NDC.
+ *
+ * @note NDC is a coordinate system in OpenGL that ranges from -1.0 to 1.0 for both x and y axes.
+ *       The top-left corner of the screen corresponds to (-1, 1), and the bottom-right corresponds
+ *       to (1, -1). Mouse coordinates provided by GLFW are in screen-space (pixels), which need to
+ *       be transformed to this NDC space for rendering or interaction purposes.
+ */
+std::pair<float, float> convert_mouse_to_ndc(double mouse_x, double mouse_y, int screen_width, int screen_height) {
+    float ndc_x = 2.0f * (mouse_x / screen_width) - 1.0f;
+    float ndc_y = 1.0f - 2.0f * (mouse_y / screen_height);
+    return {ndc_x, ndc_y};
 }
 
 struct OpenGLDrawingData {
     GLuint vbo_name;
+    GLuint cbo_name;
     GLuint ibo_name;
     GLuint vao_name;
 };
 
+std::vector<glm::vec3> generate_colors_for_indices(const std::vector<glm::vec3> &input_colors) {
+    std::vector<glm::vec3> duplicated_colors;
+    duplicated_colors.reserve(input_colors.size() * 4); // Reserve space for efficiency
+
+    for (const auto &color : input_colors) {
+        // Push the same color four times
+        duplicated_colors.push_back(color);
+        duplicated_colors.push_back(color);
+        duplicated_colors.push_back(color);
+        duplicated_colors.push_back(color);
+    }
+
+    return duplicated_colors;
+}
+
 OpenGLDrawingData prepare_drawing_data_and_opengl_drawing_data() {
-    // set up vertex data (and buffer(s)) and configure vertex attributes
-    // ------------------------------------------------------------------
-    float vertices[] = {
-        0.5f,  0.5f,  0.0f, // top right
-        0.5f,  -0.5f, 0.0f, // bottom right
-        -0.5f, -0.5f, 0.0f, // bottom left
-        -0.5f, 0.5f,  0.0f  // top left
-    };
-    GLuint indices[] = {
-        // note that we start from 0!
-        0, 1, 3, // first Triangle
-        1, 2, 3  // second Triangle
-    };
 
-    // vbo: vertex buffer object
-    // vao: vertex array object
-    // ibo: index buffer object
+    IndexedVertices grid_data = generate_grid(center, width, height, num_rectangles_x, num_rectangles_y, spacing);
 
-    GLuint vbo_name, vao_name, ibo_name;
+    auto vertex_colors = generate_colors_for_indices(original_colors);
 
+    auto vertices = grid_data.vertices;
+    auto indices = grid_data.indices;
+
+    unsigned int vbo_name, cbo_name, vao_name, ibo_name;
     glGenVertexArrays(1, &vao_name);
-    glGenBuffers(1, &vbo_name);
-    glGenBuffers(1, &ibo_name);
-    // bind the Vertex Array Object first, then bind and set vertex buffer(s), and
-    // then configure vertex attributes(s).
+    glGenBuffers(1, &vbo_name); // For vertices
+    glGenBuffers(1, &cbo_name); // For colors
+    glGenBuffers(1, &ibo_name); // For indices
+
     glBindVertexArray(vao_name);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo_name);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_name);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
 
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(0);
 
-    // note that this is allowed, the call to glVertexAttribPointer registered
-    // vbo_name as the vertex attribute's bound vertex buffer object so afterwards
-    // we can safely unbind
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
+    glBufferData(GL_ARRAY_BUFFER, vertex_colors.size() * sizeof(glm::vec3), vertex_colors.data(), GL_STATIC_DRAW);
 
-    // remember: do NOT unbind the ibo_name while a vao_name is active as the
-    // bound element buffer object IS stored in the vao_name; keep the ibo_name
-    // bound.
-    // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
+    glEnableVertexAttribArray(1);
 
-    // You can unbind the vao_name afterwards so other vao_name calls won't
-    // accidentally modify this vao_name, but this rarely happens. Modifying other
-    // VAOs requires a call to glBindVertexArray anyways so we generally don't
-    // unbind VAOs (nor VBOs) when it's not directly necessary.
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_name);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
     glBindVertexArray(0);
 
-    return {vbo_name, ibo_name, vao_name};
+    return {vbo_name, cbo_name, ibo_name, vao_name};
 }
 
 GLuint create_shader_program() {
-
-    GLuint vertex_shader;
-    GLuint fragment_shader;
-
-    vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
     glCompileShader(vertex_shader);
 
-    int success;
-    char infoLog[512];
-    glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(vertex_shader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragment_shader, 1, &fragment_shader_text, NULL);
     glCompileShader(fragment_shader);
 
-    // check for shader compile errors
-    glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
-    if (!success) {
-        glGetShaderInfoLog(fragment_shader, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
-    }
-
-    // set up the shader program
-
-    GLuint shader_program;
-    shader_program = glCreateProgram();
-
+    GLuint shader_program = glCreateProgram();
     glAttachShader(shader_program, vertex_shader);
     glAttachShader(shader_program, fragment_shader);
     glLinkProgram(shader_program);
 
-    // check for linking errors
-    glGetProgramiv(shader_program, GL_LINK_STATUS, &success);
-    if (!success) {
-        glGetProgramInfoLog(shader_program, 512, NULL, infoLog);
-        std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
-    }
-
-    // we no longer need the shader's since they've been compiled into the
-    // shader_program
     glDeleteShader(vertex_shader);
     glDeleteShader(fragment_shader);
 
@@ -145,45 +165,66 @@ GLuint create_shader_program() {
 }
 
 int main() {
+    if (!glfwInit())
+        return -1;
 
-    LiveInputState live_input_state;
+    GLFWwindow *window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "cjmines", NULL, NULL);
+    if (!window) {
+        glfwTerminate();
+        return -1;
+    }
 
-    GLFWwindow *window = initialize_glfw_glad_and_return_window(&SCREEN_WIDTH, &SCREEN_HEIGHT, "glfw window", false,
-                                                                false, false, &live_input_state);
+    glfwMakeContextCurrent(window);
+    gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
 
-    auto [vbo_name, ibo_name, vao_name] = prepare_drawing_data_and_opengl_drawing_data();
+    glfwSetCursorPosCallback(window, mouse_callback);
+
+    auto [vbo_name, cbo_name, ibo_name, vao_name] = prepare_drawing_data_and_opengl_drawing_data();
     GLuint shader_program = create_shader_program();
 
-    int width, height;
+    int aspect_ratio_loc = glGetUniformLocation(shader_program, "aspect_ratio");
+
+    std::vector<Rectangle> grid_rectangles =
+        generate_grid_rectangles(center, width, height, num_rectangles_x, num_rectangles_y, spacing);
+
+    auto copied_colors = original_colors;
 
     while (!glfwWindowShouldClose(window)) {
-
-        glfwGetFramebufferSize(window, &width, &height);
-
-        glViewport(0, 0, width, height);
-
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        // draw our first triangle
+        int current_width, current_height;
+        glfwGetWindowSize(window, &current_width, &current_height);
+
+        float aspect_ratio = (float)current_width / (float)current_height;
+        aspect_ratio = 1;
+
         glUseProgram(shader_program);
-        glBindVertexArray(vao_name); // seeing as we only have a single VAO there's
-                                     // no need to bind it every time, but we'll do
-                                     // so to keep things a bit more organized
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glUniform1f(aspect_ratio_loc, aspect_ratio);
+
+        auto [ndc_x, ndc_y] = convert_mouse_to_ndc(mouse_x, mouse_y, current_width, current_height);
+        glm::vec3 cursor_pos(ndc_x, ndc_y, 0);
+
+        for (size_t i = 0; i < grid_rectangles.size(); ++i) {
+            if (is_point_in_rectangle(grid_rectangles[i], cursor_pos)) {
+                copied_colors[i] = {1.0f, 1.0f, 1.0f};
+            } else {
+                copied_colors[i] = original_colors[i];
+            }
+        }
+
+        auto vertex_colors = generate_colors_for_indices(copied_colors);
+
+        glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
+        glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_colors.size() * sizeof(glm::vec3), vertex_colors.data());
+
+        glBindVertexArray(vao_name);
+        glDrawElements(GL_TRIANGLES, 6 * grid_rectangles.size(), GL_UNSIGNED_INT, 0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
     glfwDestroyWindow(window);
-
-    // optional: de-allocate all resources once they've outlived their purpose:
-    // ------------------------------------------------------------------------
-    glDeleteVertexArrays(1, &vao_name);
-    glDeleteBuffers(1, &vbo_name);
-    glDeleteBuffers(1, &ibo_name);
-    glDeleteProgram(shader_program);
-
     glfwTerminate();
-    exit(EXIT_SUCCESS);
+    return 0;
 }
