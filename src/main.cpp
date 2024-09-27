@@ -18,7 +18,7 @@ float width = 2.0f;
 float height = 2.0f;
 int num_rectangles_x = 5;
 int num_rectangles_y = 5;
-float spacing = 0.1f;
+float spacing = 0.05f;
 
 std::vector<glm::vec3> original_colors = {
     {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},
@@ -208,8 +208,20 @@ int main() {
     ShaderCache shader_cache({ShaderType::TEXT});
     TextRenderer text_renderer("assets/fonts/cnr.otf", 50, SCREEN_WIDTH, SCREEN_HEIGHT, shader_cache);
 
+    double previous_time = glfwGetTime();
+    int frame_count = 0;
+    float fps = 0;
+
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        double current_time = glfwGetTime();
+        frame_count++;
+        if (current_time - previous_time >= 1.0) { // Update every second
+            fps = frame_count / (current_time - previous_time);
+            previous_time = current_time;
+            frame_count = 0;
+        }
 
         int current_width, current_height;
         glfwGetWindowSize(window, &current_width, &current_height);
@@ -217,22 +229,11 @@ int main() {
         float aspect_ratio = (float)current_width / (float)current_height;
         aspect_ratio = 1;
 
-        glUseProgram(shader_program);
-        glUniform1f(aspect_ratio_loc, aspect_ratio);
-
         auto [ndc_x, ndc_y] = convert_mouse_to_ndc(mouse_x, mouse_y, current_width, current_height);
         glm::vec3 cursor_pos(ndc_x, ndc_y, 0);
 
-        for (size_t i = 0; i < grid_rectangles.size(); ++i) {
-            if (is_point_in_rectangle(grid_rectangles[i], cursor_pos)) {
-                copied_colors[i] = {1.0f, 1.0f, 1.0f};
-                if (lmb_pressed and ticks_lmb_pressed_for == 1) {
-                    sound_system.play_sound("cell", "flag");
-                }
-            } else {
-                copied_colors[i] = original_colors[i];
-            }
-        }
+        glUseProgram(shader_program);
+        glUniform1f(aspect_ratio_loc, aspect_ratio);
 
         auto vertex_colors = generate_colors_for_indices(copied_colors);
 
@@ -242,7 +243,25 @@ int main() {
         glBindVertexArray(vao_name);
         glDrawElements(GL_TRIANGLES, 6 * grid_rectangles.size(), GL_UNSIGNED_INT, 0);
 
-        text_renderer.render_text("cjmines is coming", 100, 100, 1, {1, 0, 0});
+        for (size_t i = 0; i < grid_rectangles.size(); ++i) {
+            Rectangle rect = grid_rectangles.at(i);
+            text_renderer.render_text(std::to_string(i), rect.center, 1, {.5, .5, .2});
+            if (is_point_in_rectangle(rect, cursor_pos)) {
+                copied_colors[i] = {1.0f, 1.0f, 1.0f};
+                if (lmb_pressed and ticks_lmb_pressed_for == 1) {
+                    sound_system.play_sound("cell", "flag");
+                }
+            } else {
+                copied_colors[i] = original_colors[i];
+            }
+        }
+
+        std::stringstream ss;
+        ss << "FPS: " << std::fixed << std::setprecision(1) << fps;
+        std::string fps_text = ss.str();
+
+        glm::vec2 text_dims = text_renderer.get_text_dimensions_in_ndc(fps_text, 1);
+        text_renderer.render_text(fps_text, glm::vec2(1, 1) - text_dims, 1, {0, 1, 0});
 
         glfwSwapBuffers(window);
         glfwPollEvents();
