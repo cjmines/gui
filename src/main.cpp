@@ -1,5 +1,7 @@
 #include <glad/glad.h>
 #include "vertex_geometry/vertex_geometry.hpp"
+#include "window/window.hpp"
+#include "sound_system/sound_system.hpp"
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <iomanip> // For formatting output
@@ -63,6 +65,19 @@ static double mouse_x, mouse_y;
 static void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
     mouse_x = xpos;
     mouse_y = ypos;
+}
+
+bool lmb_pressed = false;
+int ticks_lmb_pressed_for = 0;
+
+void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        lmb_pressed = true;
+        ticks_lmb_pressed_for++;
+    } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+        lmb_pressed = false;
+        ticks_lmb_pressed_for = 0;
+    }
 }
 
 /**
@@ -168,16 +183,10 @@ int main() {
     if (!glfwInit())
         return -1;
 
-    GLFWwindow *window = glfwCreateWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "cjmines", NULL, NULL);
-    if (!window) {
-        glfwTerminate();
-        return -1;
-    }
-
-    glfwMakeContextCurrent(window);
-    gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
-
+    GLFWwindow *window =
+        initialize_glfw_glad_and_return_window(SCREEN_WIDTH, SCREEN_HEIGHT, "cjmines", true, false, false);
     glfwSetCursorPosCallback(window, mouse_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
 
     auto [vbo_name, cbo_name, ibo_name, vao_name] = prepare_drawing_data_and_opengl_drawing_data();
     GLuint shader_program = create_shader_program();
@@ -188,6 +197,11 @@ int main() {
         generate_grid_rectangles(center, width, height, num_rectangles_x, num_rectangles_y, spacing);
 
     auto copied_colors = original_colors;
+
+    SoundSystem sound_system;
+
+    sound_system.load_sound_into_system_for_playback("flag", "assets/flag/output_12.mp3");
+    sound_system.create_sound_source("cell");
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -207,6 +221,9 @@ int main() {
         for (size_t i = 0; i < grid_rectangles.size(); ++i) {
             if (is_point_in_rectangle(grid_rectangles[i], cursor_pos)) {
                 copied_colors[i] = {1.0f, 1.0f, 1.0f};
+                if (lmb_pressed and ticks_lmb_pressed_for == 1) {
+                    sound_system.play_sound("cell", "flag");
+                }
             } else {
                 copied_colors[i] = original_colors[i];
             }

@@ -7,3 +7,12 @@
 [submodule "src/vertex_geometry"]
 	path = src/vertex_geometry
 	url = git@github.com:cpp-toolbox/vertex_geometry.git
+[submodule "src/shader_cache"]
+	path = src/shader_cache
+	url = git@github.com:cpp-toolbox/shader_cache.git
+[submodule "src/text_renderer"]
+	path = src/text_renderer
+	url = git@github.com:cpp-toolbox/text_renderer.git
+[submodule "src/sound_system"]
+	path = src/sound_system
+	url = git@github.com:cpp-toolbox/sound_system.git
