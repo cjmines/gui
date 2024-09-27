@@ -16,3 +16,6 @@
 [submodule "src/sound_system"]
 	path = src/sound_system
 	url = git@github.com:cpp-toolbox/sound_system.git
+[submodule "assets/shaders"]
+	path = assets/shaders
+	url = git@github.com:cpp-toolbox/shaders.git

@@ -1,4 +1,6 @@
 #include <glad/glad.h>
+#include "shader_cache/shader_cache.hpp"
+#include "text_renderer/text_renderer.hpp"
 #include "vertex_geometry/vertex_geometry.hpp"
 #include "window/window.hpp"
 #include "sound_system/sound_system.hpp"
@@ -200,8 +202,11 @@ int main() {
 
     SoundSystem sound_system;
 
-    sound_system.load_sound_into_system_for_playback("flag", "assets/flag/output_12.mp3");
+    sound_system.load_sound_into_system_for_playback("flag", "assets/audio/flag/output_12.mp3");
     sound_system.create_sound_source("cell");
+
+    ShaderCache shader_cache({ShaderType::TEXT});
+    TextRenderer text_renderer("assets/fonts/cnr.otf", 50, SCREEN_WIDTH, SCREEN_HEIGHT, shader_cache);
 
     while (!glfwWindowShouldClose(window)) {
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -236,6 +241,8 @@ int main() {
 
         glBindVertexArray(vao_name);
         glDrawElements(GL_TRIANGLES, 6 * grid_rectangles.size(), GL_UNSIGNED_INT, 0);
+
+        text_renderer.render_text("cjmines is coming", 100, 100, 1, {1, 0, 0});
 
         glfwSwapBuffers(window);
         glfwPollEvents();
