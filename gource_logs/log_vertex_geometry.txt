@@ -1,0 +1,10 @@
+1721542835|ccn|A|/vertex_geometry/README.md
+1721544908|cuppajoeman|A|/vertex_geometry/.gitignore
+1721544908|cuppajoeman|A|/vertex_geometry/sbpt.ini
+1721544908|cuppajoeman|A|/vertex_geometry/vertex_geometry.cpp
+1721544908|cuppajoeman|A|/vertex_geometry/vertex_geometry.hpp
+1722228617|cuppajoeman|D|/vertex_geometry/.gitignore
+1722932119|cuppajoeman|M|/vertex_geometry/vertex_geometry.cpp
+1722932119|cuppajoeman|M|/vertex_geometry/vertex_geometry.hpp
+1727326440|cuppajoeman|M|/vertex_geometry/vertex_geometry.cpp
+1727326440|cuppajoeman|M|/vertex_geometry/vertex_geometry.hpp

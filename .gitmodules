@@ -19,3 +19,6 @@
 [submodule "assets/shaders"]
 	path = assets/shaders
 	url = git@github.com:cpp-toolbox/shaders.git
+[submodule "src/game_logic"]
+	path = src/game_logic
+	url = git@github.com:cjmines/game_logic.git

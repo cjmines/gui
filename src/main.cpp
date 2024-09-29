@@ -4,9 +4,13 @@
 #include "vertex_geometry/vertex_geometry.hpp"
 #include "window/window.hpp"
 #include "sound_system/sound_system.hpp"
+#include "game_logic/game_logic.hpp"
+#include "game_logic/solver.hpp"
+#include "colors/colors.hpp"
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <iomanip> // For formatting output
+#include <unordered_map>
 #include <vector>
 #include <glm/vec3.hpp> // Ensure you include the GLM library for glm::vec3
 
@@ -16,16 +20,25 @@ unsigned int SCREEN_HEIGHT = 480;
 glm::vec3 center(0.0f, 0.0f, 0.0f);
 float width = 2.0f;
 float height = 2.0f;
-int num_rectangles_x = 5;
-int num_rectangles_y = 5;
-float spacing = 0.05f;
+float spacing = 0.01f;
 
-std::vector<glm::vec3> original_colors = {
-    {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f},
-    {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f}, {1.0f, 1.0f, 0.0f},
-    {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 1.0f}};
+std::unordered_map<unsigned int, Colors::ColorRGB> mine_count_to_color = {
+    {0, Colors::color_map.at(Colors::ColorName::GRAY70)},
+    {1, Colors::color_map.at(Colors::ColorName::LIGHTSKYBLUE)},
+    {2, Colors::color_map.at(Colors::ColorName::AQUAMARINE3)},
+    {3, Colors::color_map.at(Colors::ColorName::PASTELRED)},
+    {4, Colors::color_map.at(Colors::ColorName::MUTEDLIMEGREEN)},
+    {5, Colors::color_map.at(Colors::ColorName::MAROON2)},
+    {6, Colors::color_map.at(Colors::ColorName::MUTEDHOTPINK)},
+    {7, Colors::color_map.at(Colors::ColorName::MUSTARDYELLOW)},
+};
+
+auto unrevelead_cell_color = Colors::color_map.at(Colors::ColorName::BROWN);
+auto flagged_cell_color = Colors::color_map.at(Colors::ColorName::BROWN);
+auto ngs_start_pos_color = Colors::color_map.at(Colors::ColorName::LIMEGREEN);
+
+auto text_color = Colors::color_map.at(Colors::ColorName::BLACK);
+auto flag_text_color = Colors::color_map.at(Colors::ColorName::PURPLE);
 
 // Vertex Shader source code
 static const char *vertex_shader_text = "#version 330 core\n"
@@ -70,15 +83,83 @@ static void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
 }
 
 bool lmb_pressed = false;
-int ticks_lmb_pressed_for = 0;
+bool lmb_pressed_last_tick = false;
+bool rmb_pressed = false;
+bool rmb_pressed_last_tick = false;
 
 void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
         lmb_pressed = true;
-        ticks_lmb_pressed_for++;
     } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
         lmb_pressed = false;
-        ticks_lmb_pressed_for = 0;
+    }
+
+    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+        rmb_pressed = true;
+    } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
+        rmb_pressed = false;
+    }
+}
+
+bool left_shift_pressed = false;
+
+bool flag_all_pressed = false;
+bool flag_all_pressed_last_tick = false;
+
+bool flag_one_pressed = false;
+bool flag_one_pressed_last_tick = false;
+
+bool mine_all_pressed = false;
+bool mine_all_pressed_last_tick = false;
+
+bool mine_one_pressed = false;
+bool mine_one_pressed_last_tick = false;
+
+bool show_times = false;
+
+void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
+
+    if (key == GLFW_KEY_LEFT_SHIFT) {
+        if (action == GLFW_PRESS) {
+            left_shift_pressed = true;
+        }
+        if (action == GLFW_RELEASE) {
+            left_shift_pressed = false;
+        }
+    }
+
+    if (key == GLFW_KEY_F) {
+        if (action == GLFW_PRESS) {
+            if (left_shift_pressed) {
+                flag_one_pressed = true;
+            } else {
+                flag_all_pressed = true;
+            }
+        }
+        if (action == GLFW_RELEASE) {
+            flag_all_pressed = false;
+            flag_one_pressed = false;
+        }
+    }
+
+    if (key == GLFW_KEY_TAB) {
+        if (action == GLFW_PRESS) {
+            show_times = !show_times;
+        }
+    }
+
+    if (key == GLFW_KEY_D) {
+        if (action == GLFW_PRESS) {
+            if (left_shift_pressed) {
+                mine_one_pressed = true;
+            } else {
+                mine_all_pressed = true;
+            }
+        }
+        if (action == GLFW_RELEASE) {
+            mine_all_pressed = false;
+            mine_one_pressed = false;
+        }
     }
 }
 
@@ -124,11 +205,21 @@ std::vector<glm::vec3> generate_colors_for_indices(const std::vector<glm::vec3> 
     return duplicated_colors;
 }
 
-OpenGLDrawingData prepare_drawing_data_and_opengl_drawing_data() {
+std::vector<glm::vec3> normalize_rgb_colors(const std::vector<glm::vec3> &colors_255) {
+    std::vector<glm::vec3> normalized_colors;
 
-    IndexedVertices grid_data = generate_grid(center, width, height, num_rectangles_x, num_rectangles_y, spacing);
+    for (const auto &color : colors_255) {
+        normalized_colors.push_back(color / 255.0f); // Normalize each color
+    }
 
-    auto vertex_colors = generate_colors_for_indices(original_colors);
+    return normalized_colors;
+}
+
+OpenGLDrawingData prepare_drawing_data_and_opengl_drawing_data(unsigned int num_cells_x, unsigned int num_cells_y) {
+
+    IndexedVertices grid_data = generate_grid(center, width, height, num_cells_x, num_cells_y, spacing);
+
+    /*auto vertex_colors = generate_colors_for_indices(original_colors);*/
 
     auto vertices = grid_data.vertices;
     auto indices = grid_data.indices;
@@ -148,7 +239,7 @@ OpenGLDrawingData prepare_drawing_data_and_opengl_drawing_data() {
     glEnableVertexAttribArray(0);
 
     glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
-    glBufferData(GL_ARRAY_BUFFER, vertex_colors.size() * sizeof(glm::vec3), vertex_colors.data(), GL_STATIC_DRAW);
+    /*glBufferData(GL_ARRAY_BUFFER, vertex_colors.size() * sizeof(glm::vec3), vertex_colors.data(), GL_STATIC_DRAW);*/
 
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
     glEnableVertexAttribArray(1);
@@ -181,7 +272,62 @@ GLuint create_shader_program() {
     return shader_program;
 }
 
+Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_y) {
+    Solver solver;
+    Board board = generate_board(mine_count, num_cells_x, num_cells_y);
+    // keep trying until we genrate a ngsolvable board
+    std::optional<std::pair<int, int>> solution = solver.solve(board, mine_count);
+    while (not solution.has_value()) {
+        std::cout << "gnerating a new board and trying again" << std::endl;
+        board = generate_board(mine_count, num_cells_x, num_cells_y);
+        solution = solver.solve(board, mine_count);
+    }
+
+    auto [row, col] = solution.value();
+    board[row][col].safe_start = true;
+
+    return board;
+}
+
 int main() {
+
+    // intialize game systems
+
+    int num_cells_x = 8;
+    int num_cells_y = 8;
+    int mine_count = 10;
+    bool no_guess = true;
+    std::string file_path;
+
+    Board board;
+
+    bool uses_file = not file_path.empty();
+
+    if (uses_file) {
+        auto pair = read_board_from_file(file_path);
+        board = pair.first;
+        mine_count = pair.second;
+    } else {
+        board = generate_board(mine_count, num_cells_x, num_cells_y);
+    }
+
+    if (no_guess) {
+        if (uses_file) {
+            Solver solver;
+            // check if the board is ng solvable
+            std::optional<std::pair<int, int>> solution = solver.solve(board, mine_count);
+            if (solution.has_value()) {
+                std::cout << "file board is ngs" << std::endl;
+            } else {
+                std::cout << "file board is not ngs" << std::endl;
+            }
+        } else {
+            board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
+        }
+    }
+
+    // initialize visuals and sound
+
     if (!glfwInit())
         return -1;
 
@@ -189,20 +335,26 @@ int main() {
         initialize_glfw_glad_and_return_window(SCREEN_WIDTH, SCREEN_HEIGHT, "cjmines", true, false, false);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetKeyCallback(window, key_callback);
 
-    auto [vbo_name, cbo_name, ibo_name, vao_name] = prepare_drawing_data_and_opengl_drawing_data();
+    auto [vbo_name, cbo_name, ibo_name, vao_name] =
+        prepare_drawing_data_and_opengl_drawing_data(num_cells_x, num_cells_y);
     GLuint shader_program = create_shader_program();
 
     int aspect_ratio_loc = glGetUniformLocation(shader_program, "aspect_ratio");
 
     std::vector<Rectangle> grid_rectangles =
-        generate_grid_rectangles(center, width, height, num_rectangles_x, num_rectangles_y, spacing);
+        generate_grid_rectangles(center, width, height, num_cells_x, num_cells_y, spacing);
 
-    auto copied_colors = original_colors;
+    /*auto copied_colors = original_colors;*/
 
     SoundSystem sound_system;
 
-    sound_system.load_sound_into_system_for_playback("flag", "assets/audio/flag/output_12.mp3");
+    sound_system.load_sound_into_system_for_playback("mine", "assets/audio/mine/output_12.mp3");
+    sound_system.load_sound_into_system_for_playback("flag", "assets/audio/flag/flag_0.mp3");
+    sound_system.load_sound_into_system_for_playback("success", "assets/audio/success.mp3");
+    sound_system.load_sound_into_system_for_playback("explosion", "assets/audio/explosion.mp3");
+
     sound_system.create_sound_source("cell");
 
     ShaderCache shader_cache({ShaderType::TEXT});
@@ -212,9 +364,77 @@ int main() {
     int frame_count = 0;
     float fps = 0;
 
+    std::vector<glm::vec3> grid_colors;
+
+    bool sucessfully_mined = true;
+
+    const double max_fps = 256.0;
+    const double max_frame_time = 1.0 / max_fps;
+
+    double game_start_time = 0;
+    bool game_started = false;
+    std::vector<double> game_times;
+    double total_time = 0.0;
+    int games_played = 0;
+
+    // Main game loop
     while (!glfwWindowShouldClose(window)) {
+        double frame_start_time = glfwGetTime();
+
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        // Start the game time when the first move is made
+        if (!game_started && (lmb_pressed || mine_all_pressed)) {
+            game_start_time = glfwGetTime();
+            game_started = true;
+        }
+
+        if (field_clear(board)) {
+            std::cout << "field was clear" << std::endl;
+            sound_system.play_sound("cell", "success");
+
+            // Calculate elapsed time and store it
+            if (game_started) {
+                double game_time = glfwGetTime() - game_start_time;
+                game_times.push_back(game_time);
+                total_time += game_time;
+                games_played++;
+            }
+
+            game_started = false; // Reset game start flag for the next game
+
+            // Generate a new board after winning
+            if (no_guess) {
+                board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
+            } else {
+                board = generate_board(mine_count, num_cells_x, num_cells_y);
+            }
+        }
+
+        if (!sucessfully_mined) {
+            sound_system.play_sound("cell", "explosion");
+            std::cout << "you died" << std::endl;
+
+            // Calculate elapsed time and store it
+            /*if (game_started) {*/
+            /*    double game_time = glfwGetTime() - game_start_time;*/
+            /*    game_times.push_back(game_time);*/
+            /*    total_time += game_time;*/
+            /*    games_played++;*/
+            /*}*/
+
+            game_started = false; // Reset game start flag for the next game
+
+            // Generate a new board after losing
+            if (no_guess) {
+                board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
+            } else {
+                board = generate_board(mine_count, num_cells_x, num_cells_y);
+            }
+            sucessfully_mined = true;
+        }
+
+        // FPS calculation
         double current_time = glfwGetTime();
         frame_count++;
         if (current_time - previous_time >= 1.0) { // Update every second
@@ -235,36 +455,137 @@ int main() {
         glUseProgram(shader_program);
         glUniform1f(aspect_ratio_loc, aspect_ratio);
 
-        auto vertex_colors = generate_colors_for_indices(copied_colors);
-
-        glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
-        glBufferSubData(GL_ARRAY_BUFFER, 0, vertex_colors.size() * sizeof(glm::vec3), vertex_colors.data());
+        if (grid_colors.size() >= 1) {
+            glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
+            glBufferData(GL_ARRAY_BUFFER, grid_colors.size() * sizeof(glm::vec3), grid_colors.data(), GL_STATIC_DRAW);
+        }
+        grid_colors.clear();
 
         glBindVertexArray(vao_name);
         glDrawElements(GL_TRIANGLES, 6 * grid_rectangles.size(), GL_UNSIGNED_INT, 0);
 
-        for (size_t i = 0; i < grid_rectangles.size(); ++i) {
-            Rectangle rect = grid_rectangles.at(i);
-            text_renderer.render_text(std::to_string(i), rect.center, 1, {.5, .5, .2});
-            if (is_point_in_rectangle(rect, cursor_pos)) {
-                copied_colors[i] = {1.0f, 1.0f, 1.0f};
-                if (lmb_pressed and ticks_lmb_pressed_for == 1) {
-                    sound_system.play_sound("cell", "flag");
+        unsigned int flat_idx = 0;
+        for (const auto &row : board) {
+            for (const auto &cell : row) {
+                Rectangle graphical_rect = grid_rectangles.at(flat_idx);
+
+                if (cell.is_revealed) {
+                    text_renderer.render_text(std::to_string(cell.adjacent_mines), graphical_rect.center, 1,
+                                              text_color);
+                    grid_colors.push_back(mine_count_to_color.at(cell.adjacent_mines));
+                } else if (cell.is_flagged) {
+                    text_renderer.render_text("F", graphical_rect.center, 1, flag_text_color / 255.0f);
+                    grid_colors.push_back(flagged_cell_color);
+                } else if (cell.safe_start) {
+                    text_renderer.render_text("X", graphical_rect.center, 1, text_color / 255.0f);
+                    grid_colors.push_back(ngs_start_pos_color);
+                } else {
+                    grid_colors.push_back(unrevelead_cell_color);
                 }
-            } else {
-                copied_colors[i] = original_colors[i];
+
+                if (is_point_in_rectangle(graphical_rect, cursor_pos)) {
+                    bool trying_to_mine_all =
+                        (lmb_pressed && !lmb_pressed_last_tick) || (mine_all_pressed && !mine_all_pressed_last_tick);
+
+                    bool trying_to_flag_all =
+                        (rmb_pressed && !rmb_pressed_last_tick) || (flag_all_pressed && !flag_all_pressed_last_tick);
+
+                    if (trying_to_mine_all) {
+                        int row_idx = flat_idx / row.size();
+                        int col_idx = flat_idx % row.size();
+
+                        if (!cell.is_revealed) {
+                            std::cout << "mining one" << std::endl;
+                            sucessfully_mined = reveal_cell(board, row_idx, col_idx);
+                        } else {
+                            std::cout << "mining all" << std::endl;
+                            sucessfully_mined = reveal_adjacent_cells(board, row_idx, col_idx);
+                        }
+                        sound_system.play_sound("cell", "mine");
+                    }
+
+                    if (trying_to_flag_all) {
+                        int row_idx = flat_idx / row.size();
+                        int col_idx = flat_idx % row.size();
+                        if (!cell.is_revealed) {
+                            std::cout << "flagging one" << std::endl;
+                            toggle_flag_cell(board, row_idx, col_idx);
+                        } else {
+                            std::cout << "flagging all" << std::endl;
+                            flag_adjacent_cells(board, row_idx, col_idx);
+                        }
+                        sound_system.play_sound("cell", "flag");
+                    }
+                }
+                flat_idx += 1;
             }
         }
 
-        std::stringstream ss;
-        ss << "FPS: " << std::fixed << std::setprecision(1) << fps;
-        std::string fps_text = ss.str();
+        grid_colors = generate_colors_for_indices(grid_colors);
+        grid_colors = normalize_rgb_colors(grid_colors);
 
-        glm::vec2 text_dims = text_renderer.get_text_dimensions_in_ndc(fps_text, 1);
-        text_renderer.render_text(fps_text, glm::vec2(1, 1) - text_dims, 1, {0, 1, 0});
+        // Render FPS
+        std::stringstream fps_ss;
+        fps_ss << "FPS: " << std::fixed << std::setprecision(1) << fps;
+        std::string fps_text = fps_ss.str();
+        glm::vec2 fps_dims = text_renderer.get_text_dimensions_in_ndc(fps_text, 1);
+        text_renderer.render_text(fps_text, glm::vec2(1, 1) - fps_dims, 1, {0.5, 0.5, 0.5});
+
+        // Render elapsed times and average at the top left of the screen
+        if (!game_times.empty()) {
+            double average_time = total_time / games_played;
+
+            std::stringstream ss;
+            ss << "avg: " << std::fixed << std::setprecision(2) << average_time << "s\n";
+            for (size_t i = 0; i < game_times.size(); ++i) {
+                ss << "t" << i + 1 << ": " << std::fixed << std::setprecision(2) << game_times[i] << "s\n";
+            }
+
+            std::string times_text = ss.str();
+
+            // Split the string by newlines
+            std::istringstream stream(times_text);
+            std::string line;
+            float margin = 0.1;
+            glm::vec2 start_pos = glm::vec2(-0.8f, 1.0f); // Top-left corner of the screen
+            glm::vec2 current_pos = start_pos;
+
+            int line_count = 0;
+            // Loop through each line and render it
+            while (std::getline(stream, line)) {
+                if (not show_times) {
+                    if (line_count >= 1) {
+                        break;
+                    }
+                }
+                // Get the dimensions of the current line
+                glm::vec2 line_dims = text_renderer.get_text_dimensions_in_ndc(line, 1);
+
+                // Render the current line at the current position
+                text_renderer.render_text(line, current_pos - glm::vec2(0.0f, line_dims.y), 1, {0.5, 0.5, 0.5});
+
+                // Move the current position down by the height of the current line
+                current_pos.y -= (line_dims.y + margin);
+                line_count++;
+            }
+        }
+
+        lmb_pressed_last_tick = lmb_pressed;
+        rmb_pressed_last_tick = rmb_pressed;
+        flag_all_pressed_last_tick = flag_all_pressed;
+        flag_one_pressed_last_tick = flag_one_pressed;
+        mine_all_pressed_last_tick = mine_all_pressed;
+        mine_one_pressed_last_tick = mine_one_pressed;
 
         glfwSwapBuffers(window);
         glfwPollEvents();
+
+        // Frame limiting
+        double frame_end_time = glfwGetTime();
+        double frame_duration = frame_end_time - frame_start_time;
+        if (frame_duration < max_frame_time) {
+            std::this_thread::sleep_for(std::chrono::duration<double>(max_frame_time - frame_duration));
+        }
     }
 
     glfwDestroyWindow(window);
