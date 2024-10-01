@@ -5,6 +5,7 @@ spdlog/1.14.1
 freetype/2.13.2
 openal-soft/1.23.1
 libsndfile/1.2.2
+glm/cci.20230113
 [generators]
 CMakeDeps
 CMakeToolchain
