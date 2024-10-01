@@ -117,6 +117,8 @@ bool mine_one_pressed_last_tick = false;
 
 bool show_times = false;
 
+bool user_requested_quit=false;
+
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
 
     if (key == GLFW_KEY_LEFT_SHIFT) {
@@ -147,7 +149,11 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             show_times = !show_times;
         }
     }
-
+    if (key == GLFW_KEY_Q){
+	if (action == GLFW_PRESS){
+	user_requested_quit = true;
+	}	
+    }
     if (key == GLFW_KEY_D) {
         if (action == GLFW_PRESS) {
             if (left_shift_pressed) {
@@ -378,7 +384,8 @@ int main() {
     int games_played = 0;
 
     // Main game loop
-    while (!glfwWindowShouldClose(window)) {
+    while (!glfwWindowShouldClose(window) and !user_requested_quit) {
+    
         double frame_start_time = glfwGetTime();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -562,7 +569,7 @@ int main() {
                 glm::vec2 line_dims = text_renderer.get_text_dimensions_in_ndc(line, 1);
 
                 // Render the current line at the current position
-                text_renderer.render_text(line, current_pos - glm::vec2(0.0f, line_dims.y), 1, {0.5, 0.5, 0.5});
+                text_renderer.render_text(line, current_pos - glm::vec2(0.0f, line_dims.y), 1, {1, 0, 0});
 
                 // Move the current position down by the height of the current line
                 current_pos.y -= (line_dims.y + margin);
