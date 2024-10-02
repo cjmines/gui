@@ -117,7 +117,7 @@ bool mine_one_pressed_last_tick = false;
 
 bool show_times = false;
 
-bool user_requested_quit=false;
+bool user_requested_quit = false;
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
 
@@ -149,10 +149,10 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             show_times = !show_times;
         }
     }
-    if (key == GLFW_KEY_Q){
-	if (action == GLFW_PRESS){
-	user_requested_quit = true;
-	}	
+    if (key == GLFW_KEY_Q) {
+        if (action == GLFW_PRESS) {
+            user_requested_quit = true;
+        }
     }
     if (key == GLFW_KEY_D) {
         if (action == GLFW_PRESS) {
@@ -297,11 +297,10 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
 
 int main() {
 
-    // intialize game systems
-
-    int num_cells_x = 8;
-    int num_cells_y = 8;
-    int mine_count = 10;
+    float mine_percentage = 0.20;
+    int num_cells_x = 20;
+    int num_cells_y = 20;
+    int mine_count = num_cells_x * num_cells_y * mine_percentage;
     bool no_guess = true;
     std::string file_path;
 
@@ -385,7 +384,7 @@ int main() {
 
     // Main game loop
     while (!glfwWindowShouldClose(window) and !user_requested_quit) {
-    
+
         double frame_start_time = glfwGetTime();
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
