@@ -25,3 +25,6 @@
 [submodule "src/logger_component"]
 	path = src/logger_component
 	url = git@github.com:cpp-toolbox/logger_component.git
+[submodule "assets/text_minefields"]
+	path = assets/text_minefields
+	url = git@github.com:cjmines/text_minefields.git

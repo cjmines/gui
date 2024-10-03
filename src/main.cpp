@@ -297,24 +297,40 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
 
 int main() {
 
-    float mine_percentage = 0.20;
+    float mine_percentage = 0.23;
     int num_cells_x = 20;
     int num_cells_y = 20;
     int mine_count = num_cells_x * num_cells_y * mine_percentage;
     bool no_guess = true;
-    std::string file_path;
+    bool play_field_from_path = false;
+    /*std::string file_path = "assets/minefields/criss_cross.png"; // Change this to your desired path*/
+    std::string file_path = "";
 
     Board board;
 
-    bool uses_file = not file_path.empty();
+    bool uses_file = !file_path.empty();
 
     if (uses_file) {
-        auto pair = read_board_from_file(file_path);
-        board = pair.first;
-        mine_count = pair.second;
+        // Check the file extension
+        std::string extension = file_path.substr(file_path.find_last_of('.') + 1);
+
+        if (extension == "txt") {
+            auto pair = read_board_from_file(file_path);
+            board = pair.first;
+            mine_count = pair.second;
+        } else if (extension == "png") {
+            auto pair = read_board_from_image_file(file_path);
+            board = pair.first;
+            mine_count = pair.second;
+        } else {
+            std::cerr << "Unsupported file format: " << extension << std::endl;
+        }
     } else {
         board = generate_board(mine_count, num_cells_x, num_cells_y);
     }
+
+    num_cells_y = board.size();
+    num_cells_x = board[0].size();
 
     if (no_guess) {
         if (uses_file) {
@@ -323,8 +339,14 @@ int main() {
             std::optional<std::pair<int, int>> solution = solver.solve(board, mine_count);
             if (solution.has_value()) {
                 std::cout << "file board is ngs" << std::endl;
+                auto safe_row = solution.value().first;
+                auto safe_col = solution.value().second;
+                board[safe_row][safe_row].safe_start = true;
             } else {
                 std::cout << "file board is not ngs" << std::endl;
+            }
+            if (not play_field_from_path) {
+                return 0;
             }
         } else {
             board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
