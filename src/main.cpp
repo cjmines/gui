@@ -297,13 +297,13 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
 
 int main() {
 
-    float mine_percentage = 0.23;
-    int num_cells_x = 20;
-    int num_cells_y = 20;
+    float mine_percentage = 0.30;
+    int num_cells_x = 10;
+    int num_cells_y = 10;
     int mine_count = num_cells_x * num_cells_y * mine_percentage;
     bool no_guess = true;
     bool play_field_from_path = false;
-    /*std::string file_path = "assets/minefields/criss_cross.png"; // Change this to your desired path*/
+    /*std::string file_path = "assets/minefields/tiny_check.png"; // Change this to your desired path*/
     std::string file_path = "";
 
     Board board;
