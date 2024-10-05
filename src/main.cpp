@@ -303,8 +303,8 @@ int main() {
     int mine_count = num_cells_x * num_cells_y * mine_percentage;
     bool no_guess = true;
     bool play_field_from_path = false;
-    std::string file_path = "assets/minefields/checkerboard.png"; // Change this to your desired path
-    /*std::string file_path = "";*/
+    /*std::string file_path = "assets/minefields/checkerboard.png"; // Change this to your desired path*/
+    std::string file_path = "";
 
     Board board;
 
