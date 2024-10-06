@@ -395,7 +395,7 @@ int main() {
 
     bool sucessfully_mined = true;
 
-    const double max_fps = 256.0;
+    const double max_fps = 60.0;
     const double max_frame_time = 1.0 / max_fps;
 
     double game_start_time = 0;
