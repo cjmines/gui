@@ -297,7 +297,7 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
 
 int main() {
 
-    float mine_percentage = 0.30;
+    float mine_percentage = 0.15;
     int num_cells_x = 10;
     int num_cells_y = 10;
     int mine_count = num_cells_x * num_cells_y * mine_percentage;
@@ -483,10 +483,14 @@ int main() {
         glUseProgram(shader_program);
         glUniform1f(aspect_ratio_loc, aspect_ratio);
 
-        if (grid_colors.size() >= 1) {
-            glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
-            glBufferData(GL_ARRAY_BUFFER, grid_colors.size() * sizeof(glm::vec3), grid_colors.data(), GL_STATIC_DRAW);
+        if (!grid_colors.size()) {
+            for (int i = 0; i < num_cells_x * num_cells_y; i++) {
+                grid_colors.push_back(glm::vec3{0, 0, 0});
+            }
         }
+        glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
+        glBufferData(GL_ARRAY_BUFFER, grid_colors.size() * sizeof(glm::vec3), grid_colors.data(), GL_STATIC_DRAW);
+
         grid_colors.clear();
 
         glBindVertexArray(vao_name);
