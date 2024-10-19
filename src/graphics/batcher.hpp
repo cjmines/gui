@@ -21,9 +21,61 @@
  * don't have to buffer that data again. We decided not to work on this atm because this will be a
  * complex solution with a lot of changes necessary.
  *
- *
- *
+ * queue_draw(id, ...)
+ * Map id to vertices in CPU cache
+ * For every draw call compare cache with new inputted vertices to see if things changed
+ * If yes, then change only those vertices (glBufferSubData)
+ * If no, then keep those vertices as is
+ * 
+ * Newly created vertices should be appended to the list (but this requires either over-allocation at initialization,
+ * i.e a bigger buffer than necessary or rebuffering)
+ * What about deleted vertices? Problem: they create holes
+ * You can use glBufferSubData to shift subsequent elements? Like deleting an element from the middle of a 
+ * Python list.
+ * 
+ * 
+ * From Khronos
+ * Rendering with a different VAO from the last drawing command is usually a relatively expensive operation.
+ * 
+ * Shader {
+ *   VAO {
+ *      VBO-1
+ *        VBO-1 attrib-1 enabled/disabled, pointers
+ *        VBO-1 attrib-2 enabled/disabled, pointers
+ *        ...
+ *      VBO-2
+ *        ...
+ *      VBO-3
+ *        ...
+ *      (VAO only remembers VBOs if attributes are set up)
+ *      ...
+ *      EBO (just one; NOT part of global state)
+ *   }
+ * }
+ * 
+ * Instance rendering is for when geometry is identical but per-instance attributes vary.
+ * Single VBO + per-instance buffers.
+ * 
+ * Multidraw is for when objects are different but share similar state.
+ * Multiple VBOs
+ * 
+ * Attribute vs. Uniform?
+ * Uniforms are shared between all vertices/fragments. Attributes are INTERPOLATED between fragments.
  */
+
+// every shader needs batching unique to it (should every shader implement its own batching?)
+// parse shader to programmatically get attribs and their types while also generating code that batches it
+// is the code that batches it possible to generalize?
+// ShaderVertexAttributeVariable -> vector<ShaderVertexAttributeVariable>
+// vec3attribs = unordered_map<ShaderVertexAttributeVariableEnum, vector<glm::vec3>>
+// uiattribs = unordered_map<ShaderVertexAttributeVariableEnum, vector<unsigned int>>
+// 
+// {ShaderVertexAttributeVariable::POSITION, ShaderVertexAttributeVariable::PASSTHROUGH_RGB_COLOR}
+// for ([attrib, data] : vec3attribs) {
+//    
+// }
+// 
+
 
 struct DrawInfoPerShader {
     GLuint VAO;
@@ -34,7 +86,41 @@ struct DrawInfoPerShader {
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> colors;
     std::vector<unsigned int> indices;
+    // ShaderVertexAttributeVariable -> vector<ShaderVertexAttributeVariable>
 };
+
+// approach 1: 
+// each shader implements its own batching
+// Shader 
+// .draw(..., ..., ...) <-- batching (different args per shader)
+// 
+// approach 2:
+// have all vertices, colors, indices, etc. in function signature of queue_draw but use defaults
+// potentially enable/disable vertex attributes based on which ones the current shader actually needs
+//
+// approach 3:
+// lambda (?) with unique signature per shader
+// like approach 1 without classes
+// shader type -> shader batcher class with function called queue_draw (@override) + relevant info
+// master batcher contains shader type <-> shader batcher
+
+// one problem: we need different signatures based on the shader
+// we don't want to make new functions per shader
+
+// https://www.reddit.com/r/opengl/comments/xtsqoa/optimizing_draw_calls/
+// https://www.reddit.com/r/GraphicsProgramming/comments/qvh62l/comment/hkx35i6/
+
+
+/**
+ * approach 1
+ * queueDraw = MasterBatcher.shaderBatchers.at(ShaderType::...);
+ * queueDraw(..., ..., ...);
+ */
+
+
+
+
+
 
 class Batcher {
   public:
@@ -54,6 +140,7 @@ class Batcher {
 
             glBindBuffer(GL_ARRAY_BUFFER, shader_type_to_draw_info_this_tick[requested_shader].VBO);
 
+            // loop?
             glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
             glEnableVertexAttribArray(0);
 
@@ -87,8 +174,6 @@ class Batcher {
 
     void draw_everything() {
         for (const auto &[type, draw_info] : shader_type_to_draw_info_this_tick) {
-            // Print the ShaderType (key)
-            // std::cout << "ShaderType: " << shader_type_to_string(type) << std::endl;
             shader_cache.use_shader_program(type);
 
             glBindVertexArray(draw_info.VAO);
@@ -110,19 +195,6 @@ class Batcher {
             glBindVertexArray(0);
 
             shader_cache.stop_using_shader_program();
-
-            // // Print the vector of glm::vec3 (first element of the pair)
-            // std::cout << "glm::vec3 values:" << std::endl;
-            // for (const auto &vec : pair.second.first) {
-            //     std::cout << "(" << vec.x << ", " << vec.y << ", " << vec.z << ")" << std::endl;
-            // }
-
-            // // Print the vector of unsigned int (second element of the pair)
-            // std::cout << "unsigned int values:" << std::endl;
-            // for (unsigned int index : pair.second.second) {
-            //     std::cout << index << " ";
-            // }
-            // std::cout << std::endl;
         }
 
         for (auto &[type, draw_info] : shader_type_to_draw_info_this_tick) {

@@ -376,11 +376,7 @@ int main() {
 
     std::vector<ShaderType> requested_shaders = {ShaderType::TEXT, ShaderType::ABSOLUTE_POSITION_WITH_COLORED_VERTEX};
     ShaderCache shader_cache(requested_shaders);
-    // auto [vbo_name, cbo_name, ibo_name, vao_name] =
-    //     prepare_drawing_data_and_opengl_drawing_data(num_cells_x, num_cells_y, shader_cache);
-    // GLuint shader_program = create_shader_program();
-
-    // int aspect_ratio_loc = glGetUniformLocation(shader_program, "aspect_ratio");
+    Batcher batcher{requested_shaders, shader_cache};
 
     std::vector<Rectangle> grid_rectangles =
         generate_grid_rectangles(center, width, height, num_cells_x, num_cells_y, spacing);
@@ -402,8 +398,6 @@ int main() {
     int frame_count = 0;
     float fps = 0;
 
-    std::vector<glm::vec3> grid_colors;
-
     bool sucessfully_mined = true;
 
     const double max_fps = 60.0;
@@ -414,21 +408,6 @@ int main() {
     std::vector<double> game_times;
     double total_time = 0.0;
     int games_played = 0;
-
-    Batcher batcher{requested_shaders, shader_cache};
-    // while (!glfwWindowShouldClose(window)) {
-    //     std::vector<glm::vec3> a = {glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f,
-    //     0.0f)}; std::vector<unsigned int> b = {0, 1, 2}; std::vector<glm::vec3> c = {glm::vec3(1.0f, 0.0f, 0.0f),
-    //     glm::vec3(0.0f, 1.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)};
-
-    //     batcher.queue_draw(a, c, b, ShaderType::TEXT);
-    //     batcher.queue_draw(a, c, b, ShaderType::TEXT);
-    //     batcher.queue_draw(a, c, b, ShaderType::ABSOLUTE_POSITION_WITH_SOLID_COLOR);
-    //     batcher.draw_everything();
-
-    //     glfwSwapBuffers(window);
-    //     glfwPollEvents();
-    // }
 
     // Main game loop
     while (!glfwWindowShouldClose(window) and !user_requested_quit) {
@@ -508,22 +487,6 @@ int main() {
 
         shader_cache.use_shader_program(ShaderType::ABSOLUTE_POSITION_WITH_COLORED_VERTEX);
 
-        // glUseProgram(shader_program);
-        // glUniform1f(aspect_ratio_loc, aspect_ratio);
-
-        if (!grid_colors.size()) {
-            for (int i = 0; i < num_cells_x * num_cells_y; i++) {
-                grid_colors.push_back(glm::vec3{0, 0, 0});
-            }
-        }
-        // glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
-        // glBufferData(GL_ARRAY_BUFFER, grid_colors.size() * sizeof(glm::vec3), grid_colors.data(), GL_STATIC_DRAW);
-
-        grid_colors.clear();
-
-        // glBindVertexArray(vao_name);
-        // glDrawElements(GL_TRIANGLES, 6 * grid_rectangles.size(), GL_UNSIGNED_INT, 0);
-
         unsigned int flat_idx = 0;
         for (const auto &row : board) {
             for (const auto &cell : row) {
@@ -535,20 +498,16 @@ int main() {
 
                 glm::vec3 rectangle_color;
                 if (cell.is_revealed) {
-                    // text_renderer.render_text(std::to_string(cell.adjacent_mines), graphical_rect.center, 1,
-                    //                           text_color);
-                    // grid_colors.push_back(mine_count_to_color.at(cell.adjacent_mines));
+                    text_renderer.render_text(std::to_string(cell.adjacent_mines), graphical_rect.center, 1,
+                                              text_color);
                     rectangle_color = mine_count_to_color.at(cell.adjacent_mines);
                 } else if (cell.is_flagged) {
-                    // text_renderer.render_text("F", graphical_rect.center, 1, flag_text_color / 255.0f);
-                    // grid_colors.push_back(flagged_cell_color);
+                    text_renderer.render_text("F", graphical_rect.center, 1, flag_text_color / 255.0f);
                     rectangle_color = flagged_cell_color;
                 } else if (cell.safe_start) {
-                    // text_renderer.render_text("X", graphical_rect.center, 1, text_color / 255.0f);
-                    // grid_colors.push_back(ngs_start_pos_color);
+                    text_renderer.render_text("X", graphical_rect.center, 1, text_color / 255.0f);
                     rectangle_color = ngs_start_pos_color;
                 } else {
-                    // grid_colors.push_back(unrevelead_cell_color);
                     rectangle_color = unrevelead_cell_color;
                 }
 
@@ -596,9 +555,6 @@ int main() {
 
         batcher.draw_everything();
 
-        grid_colors = generate_colors_for_indices(grid_colors);
-        grid_colors = normalize_rgb_colors(grid_colors);
-
         // Render FPS
         std::stringstream fps_ss;
         fps_ss << "FPS: " << std::fixed << std::setprecision(1) << fps;
@@ -637,7 +593,7 @@ int main() {
                 glm::vec2 line_dims = text_renderer.get_text_dimensions_in_ndc(line, 1);
 
                 // Render the current line at the current position
-                // text_renderer.render_text(line, current_pos - glm::vec2(0.0f, line_dims.y), 1, {1, 0, 0});
+                text_renderer.render_text(line, current_pos - glm::vec2(0.0f, line_dims.y), 1, {1, 0, 0});
 
                 // Move the current position down by the height of the current line
                 current_pos.y -= (line_dims.y + margin);
