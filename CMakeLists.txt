@@ -1,6 +1,7 @@
 # Minimum required version of CMake
 cmake_minimum_required(VERSION 3.10)
 
+add_compile_definitions(_USE_MATH_DEFINES)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(cjmines_gui)
@@ -25,4 +26,5 @@ find_package(OpenAL)
 find_package(SndFile)
 find_package(glm)
 find_package(stb)
-target_link_libraries(${PROJECT_NAME} glad::glad glfw spdlog::spdlog Freetype::Freetype OpenAL::OpenAL SndFile::sndfile glm::glm stb::stb)
+find_package(nlohmann_json)
+target_link_libraries(${PROJECT_NAME} glad::glad glfw spdlog::spdlog Freetype::Freetype OpenAL::OpenAL SndFile::sndfile glm::glm stb::stb nlohmann_json::nlohmann_json)

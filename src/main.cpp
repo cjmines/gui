@@ -1,18 +1,25 @@
+#define STB_IMAGE_IMPLEMENTATION // Define this in exactly one source file
+#include <stb_image.h>
+
 #include <glad/glad.h>
 #include "shader_cache/shader_cache.hpp"
-#include "text_renderer/text_renderer.hpp"
+// #include "text_renderer/text_renderer.hpp"
 #include "vertex_geometry/vertex_geometry.hpp"
 #include "window/window.hpp"
 #include "sound_system/sound_system.hpp"
 #include "game_logic/game_logic.hpp"
 #include "game_logic/solver.hpp"
-#include "colors/colors.hpp"
+#include "graphics/batcher/generated/batcher.hpp"
+#include "graphics/ui/ui.hpp"
+#include "graphics/colors/colors.hpp"
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <iomanip> // For formatting output
 #include <unordered_map>
 #include <vector>
 #include <glm/vec3.hpp> // Ensure you include the GLM library for glm::vec3
+
+Colors colors;
 
 unsigned int SCREEN_WIDTH = 640;
 unsigned int SCREEN_HEIGHT = 480;
@@ -22,43 +29,17 @@ float width = 2.0f;
 float height = 2.0f;
 float spacing = 0.01f;
 
-std::unordered_map<unsigned int, Colors::ColorRGB> mine_count_to_color = {
-    {0, Colors::color_map.at(Colors::ColorName::GRAY70)},
-    {1, Colors::color_map.at(Colors::ColorName::LIGHTSKYBLUE)},
-    {2, Colors::color_map.at(Colors::ColorName::AQUAMARINE3)},
-    {3, Colors::color_map.at(Colors::ColorName::PASTELRED)},
-    {4, Colors::color_map.at(Colors::ColorName::MUTEDLIMEGREEN)},
-    {5, Colors::color_map.at(Colors::ColorName::MAROON2)},
-    {6, Colors::color_map.at(Colors::ColorName::MUTEDHOTPINK)},
-    {7, Colors::color_map.at(Colors::ColorName::MUSTARDYELLOW)},
+std::unordered_map<unsigned int, glm::vec3> mine_count_to_color = {
+    {0, colors.grey70},         {1, colors.lightskyblue}, {2, colors.aquamarine3},  {3, colors.pastelred},
+    {4, colors.mutedlimegreen}, {5, colors.maroon2},      {6, colors.mutedhotpink}, {7, colors.mustardyellow},
 };
 
-auto unrevelead_cell_color = Colors::color_map.at(Colors::ColorName::BROWN);
-auto flagged_cell_color = Colors::color_map.at(Colors::ColorName::BROWN);
-auto ngs_start_pos_color = Colors::color_map.at(Colors::ColorName::LIMEGREEN);
+auto unrevelead_cell_color = colors.brown;
+auto flagged_cell_color = colors.brown;
+auto ngs_start_pos_color = colors.limegreen;
 
-auto text_color = Colors::color_map.at(Colors::ColorName::BLACK);
-auto flag_text_color = Colors::color_map.at(Colors::ColorName::PURPLE);
-
-// Vertex Shader source code
-static const char *vertex_shader_text = "#version 330 core\n"
-                                        "layout (location = 0) in vec3 aPos;\n"
-                                        "layout (location = 1) in vec3 aColor;\n"
-                                        "out vec3 ourColor;\n"
-                                        "void main()\n"
-                                        "{\n"
-                                        "   gl_Position = vec4(aPos, 1.0);\n"
-                                        "   ourColor = aColor;\n"
-                                        "}\0";
-
-// Fragment Shader source code
-static const char *fragment_shader_text = "#version 330 core\n"
-                                          "in vec3 ourColor;\n"
-                                          "out vec4 FragColor;\n"
-                                          "void main()\n"
-                                          "{\n"
-                                          "   FragColor = vec4(ourColor, 1.0f);\n"
-                                          "}\n\0";
+auto text_color = colors.black;
+auto flag_text_color = colors.purple;
 
 bool is_point_in_rectangle(const Rectangle &rect, const glm::vec3 &point) {
     float half_width = rect.width / 2.0f;
@@ -119,6 +100,25 @@ bool show_times = false;
 
 bool user_requested_quit = false;
 
+int key_pressed_this_tick = GLFW_KEY_UNKNOWN;
+std::string key_to_string(int key) {
+    static const std::unordered_map<int, std::string> key_map = {
+        {GLFW_KEY_A, "a"}, {GLFW_KEY_B, "b"},    {GLFW_KEY_C, "c"}, {GLFW_KEY_D, "d"}, {GLFW_KEY_E, "e"},
+        {GLFW_KEY_F, "f"}, {GLFW_KEY_G, "g"},    {GLFW_KEY_H, "h"}, {GLFW_KEY_I, "i"}, {GLFW_KEY_J, "j"},
+        {GLFW_KEY_K, "k"}, {GLFW_KEY_L, "l"},    {GLFW_KEY_M, "m"}, {GLFW_KEY_N, "n"}, {GLFW_KEY_O, "o"},
+        {GLFW_KEY_P, "p"}, {GLFW_KEY_Q, "q"},    {GLFW_KEY_R, "r"}, {GLFW_KEY_S, "s"}, {GLFW_KEY_T, "t"},
+        {GLFW_KEY_U, "u"}, {GLFW_KEY_V, "v"},    {GLFW_KEY_W, "w"}, {GLFW_KEY_X, "x"}, {GLFW_KEY_Y, "y"},
+        {GLFW_KEY_Z, "z"}, {GLFW_KEY_0, "0"},    {GLFW_KEY_1, "1"}, {GLFW_KEY_2, "2"}, {GLFW_KEY_3, "3"},
+        {GLFW_KEY_4, "4"}, {GLFW_KEY_5, "5"},    {GLFW_KEY_6, "6"}, {GLFW_KEY_7, "7"}, {GLFW_KEY_8, "8"},
+        {GLFW_KEY_9, "9"}, {GLFW_KEY_SPACE, " "}
+        // Add more keys if needed, like special characters or function keys
+    };
+
+    // Find the key in the map and return the corresponding string, or empty if not found
+    auto it = key_map.find(key);
+    return (it != key_map.end()) ? it->second : "";
+}
+
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
 
     if (key == GLFW_KEY_LEFT_SHIFT) {
@@ -167,6 +167,23 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
             mine_one_pressed = false;
         }
     }
+
+    if (action == GLFW_PRESS) {
+        key_pressed_this_tick = key; // Store the key pressed this tick
+    }
+}
+
+void process_key_pressed_this_tick(UI &ui) {
+    if (key_pressed_this_tick != GLFW_KEY_UNKNOWN) {
+        std::string key_string = key_to_string(key_pressed_this_tick);
+        if (!key_string.empty()) {
+            ui.process_key_press(key_string);
+        }
+        if (key_pressed_this_tick == GLFW_KEY_BACKSPACE) {
+            ui.process_delete_action();
+        }
+        key_pressed_this_tick = GLFW_KEY_UNKNOWN; // Clear the key at the end of the tick
+    }
 }
 
 /**
@@ -189,13 +206,6 @@ std::pair<float, float> convert_mouse_to_ndc(double mouse_x, double mouse_y, int
     return {ndc_x, ndc_y};
 }
 
-struct OpenGLDrawingData {
-    GLuint vbo_name;
-    GLuint cbo_name;
-    GLuint ibo_name;
-    GLuint vao_name;
-};
-
 std::vector<glm::vec3> generate_colors_for_indices(const std::vector<glm::vec3> &input_colors) {
     std::vector<glm::vec3> duplicated_colors;
     duplicated_colors.reserve(input_colors.size() * 4); // Reserve space for efficiency
@@ -209,73 +219,6 @@ std::vector<glm::vec3> generate_colors_for_indices(const std::vector<glm::vec3> 
     }
 
     return duplicated_colors;
-}
-
-std::vector<glm::vec3> normalize_rgb_colors(const std::vector<glm::vec3> &colors_255) {
-    std::vector<glm::vec3> normalized_colors;
-
-    for (const auto &color : colors_255) {
-        normalized_colors.push_back(color / 255.0f); // Normalize each color
-    }
-
-    return normalized_colors;
-}
-
-OpenGLDrawingData prepare_drawing_data_and_opengl_drawing_data(unsigned int num_cells_x, unsigned int num_cells_y) {
-
-    IndexedVertices grid_data = generate_grid(center, width, height, num_cells_x, num_cells_y, spacing);
-
-    /*auto vertex_colors = generate_colors_for_indices(original_colors);*/
-
-    auto vertices = grid_data.vertices;
-    auto indices = grid_data.indices;
-
-    unsigned int vbo_name, cbo_name, vao_name, ibo_name;
-    glGenVertexArrays(1, &vao_name);
-    glGenBuffers(1, &vbo_name); // For vertices
-    glGenBuffers(1, &cbo_name); // For colors
-    glGenBuffers(1, &ibo_name); // For indices
-
-    glBindVertexArray(vao_name);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo_name);
-    glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec3), vertices.data(), GL_STATIC_DRAW);
-
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
-    /*glBufferData(GL_ARRAY_BUFFER, vertex_colors.size() * sizeof(glm::vec3), vertex_colors.data(), GL_STATIC_DRAW);*/
-
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void *)0);
-    glEnableVertexAttribArray(1);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo_name);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    return {vbo_name, cbo_name, ibo_name, vao_name};
-}
-
-GLuint create_shader_program() {
-    GLuint vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertex_shader, 1, &vertex_shader_text, NULL);
-    glCompileShader(vertex_shader);
-
-    GLuint fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragment_shader, 1, &fragment_shader_text, NULL);
-    glCompileShader(fragment_shader);
-
-    GLuint shader_program = glCreateProgram();
-    glAttachShader(shader_program, vertex_shader);
-    glAttachShader(shader_program, fragment_shader);
-    glLinkProgram(shader_program);
-
-    glDeleteShader(vertex_shader);
-    glDeleteShader(fragment_shader);
-
-    return shader_program;
 }
 
 Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_y) {
@@ -295,8 +238,40 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
     return board;
 }
 
-int main() {
+enum GameState { MAIN_MENU, OPTIONS_PAGE, IN_GAME };
 
+UI create_main_menu(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state) {
+    UI main_menu_ui(font_atlas);
+
+    std::function<void()> on_play = [&]() { curr_state = OPTIONS_PAGE; };
+    std::function<void()> on_quit = [&]() { glfwSetWindowShouldClose(window, GLFW_TRUE); };
+
+    main_menu_ui.add_textbox("Welcome to CJMines", 0, 0.75, 1, 0.25, colors.grey);
+    main_menu_ui.add_clickable_textbox(on_play, "Play", 0.65, -0.65, 0.5, 0.5, colors.darkgreen, colors.green);
+    main_menu_ui.add_clickable_textbox(on_quit, "Quit", -0.65, -0.65, 0.5, 0.5, colors.darkred, colors.red);
+
+    return main_menu_ui;
+}
+
+UI create_options_page(FontAtlas &font_atlas, GameState &curr_state) {
+    UI in_game_ui(font_atlas);
+
+    std::function<void(std::string)> on_confirm = [&](std::string contents) { std::cout << contents << std::endl; };
+    std::function<void()> on_back = [&]() { curr_state = OPTIONS_PAGE; };
+    std::function<void()> on_play = [&]() { curr_state = IN_GAME; };
+
+    in_game_ui.add_input_box(on_confirm, "Board Width", 0, 0.25, 1, 0.25, colors.grey, colors.lightgrey);
+    in_game_ui.add_input_box(on_confirm, "Board Height", 0, 0.0, 1, 0.25, colors.grey, colors.lightgrey);
+    in_game_ui.add_input_box(on_confirm, "Number of Mines", 0, -0.25, 1, 0.25, colors.grey, colors.lightgrey);
+    in_game_ui.add_clickable_textbox(on_play, "Start Game", 0.65, -0.65, 0.5, 0.5, colors.seagreen, colors.grey);
+    in_game_ui.add_clickable_textbox(on_back, "Back to Main Menu", -0.65, -0.65, 0.5, 0.5, colors.seagreen,
+                                     colors.grey);
+
+    return in_game_ui;
+}
+
+int main() {
+    GameState curr_state = MAIN_MENU;
     float mine_percentage = 0.15;
     int num_cells_x = 10;
     int num_cells_y = 10;
@@ -364,11 +339,10 @@ int main() {
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetKeyCallback(window, key_callback);
 
-    auto [vbo_name, cbo_name, ibo_name, vao_name] =
-        prepare_drawing_data_and_opengl_drawing_data(num_cells_x, num_cells_y);
-    GLuint shader_program = create_shader_program();
-
-    int aspect_ratio_loc = glGetUniformLocation(shader_program, "aspect_ratio");
+    std::vector<ShaderType> requested_shaders = {ShaderType::ABSOLUTE_POSITION_WITH_COLORED_VERTEX,
+                                                 ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT};
+    ShaderCache shader_cache(requested_shaders);
+    Batcher batcher(shader_cache);
 
     std::vector<Rectangle> grid_rectangles =
         generate_grid_rectangles(center, width, height, num_cells_x, num_cells_y, spacing);
@@ -384,14 +358,39 @@ int main() {
 
     sound_system.create_sound_source("cell");
 
-    ShaderCache shader_cache({ShaderType::TEXT});
-    TextRenderer text_renderer("assets/fonts/cnr.otf", 50, SCREEN_WIDTH, SCREEN_HEIGHT, shader_cache);
+    // TextRenderer text_renderer("assets/fonts/cnr.otf", 50, SCREEN_WIDTH, SCREEN_HEIGHT, shader_cache);
+
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    FontAtlas font_atlas("assets/fonts/times_64_sdf_atlas_font_info.json", "assets/fonts/times_64_sdf_atlas.json",
+                         "assets/fonts/times_64_sdf_atlas.png", SCREEN_WIDTH, false, true);
+
+    glm::mat4 projection = glm::mat4(1);
+    auto text_color = glm::vec3(0.5, 0.5, 1);
+    float char_width = 0.5;
+    float edge_transition = 0.1;
+
+    shader_cache.use_shader_program(ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT);
+    shader_cache.set_uniform(ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT, ShaderUniformVariable::TRANSFORM,
+                             projection);
+
+    shader_cache.set_uniform(ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT, ShaderUniformVariable::RGB_COLOR,
+                             text_color);
+
+    shader_cache.set_uniform(ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT,
+                             ShaderUniformVariable::CHARACTER_WIDTH, char_width);
+
+    shader_cache.set_uniform(ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT,
+                             ShaderUniformVariable::EDGE_TRANSITION_WIDTH, edge_transition);
+
+    std::unordered_map<GameState, UI> game_state_to_ui = {{MAIN_MENU, create_main_menu(window, font_atlas, curr_state)},
+                                                          {OPTIONS_PAGE, create_options_page(font_atlas, curr_state)}};
 
     double previous_time = glfwGetTime();
     int frame_count = 0;
     float fps = 0;
-
-    std::vector<glm::vec3> grid_colors;
 
     bool sucessfully_mined = true;
 
@@ -411,6 +410,48 @@ int main() {
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        if (curr_state != IN_GAME) {
+            auto ndc_mouse_pos = convert_mouse_to_ndc(mouse_x, mouse_y, SCREEN_WIDTH, SCREEN_HEIGHT);
+            auto &curr_ui = game_state_to_ui.at(curr_state);
+
+            glm::vec2 ndc_mouse_pos_vec(ndc_mouse_pos.first, ndc_mouse_pos.second);
+            curr_ui.process_mouse_position(ndc_mouse_pos_vec);
+
+            if (lmb_pressed && !lmb_pressed_last_tick) {
+                curr_ui.process_mouse_just_clicked(ndc_mouse_pos_vec);
+            }
+
+            process_key_pressed_this_tick(curr_ui);
+
+            for (auto &tb : curr_ui.get_text_boxes()) {
+                batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(
+                    tb.text_drawing_data.indices, tb.text_drawing_data.xyz_positions,
+                    tb.text_drawing_data.texture_coordinates);
+                batcher.absolute_position_with_colored_vertex_shader_batcher.queue_draw(
+                    tb.background_ivpsc.indices, tb.background_ivpsc.xyz_positions, tb.background_ivpsc.rgb_colors);
+            }
+
+            for (auto &cr : curr_ui.get_clickable_text_boxes()) {
+                batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(
+                    cr.text_drawing_data.indices, cr.text_drawing_data.xyz_positions,
+                    cr.text_drawing_data.texture_coordinates);
+                batcher.absolute_position_with_colored_vertex_shader_batcher.queue_draw(
+                    cr.ivpsc.indices, cr.ivpsc.xyz_positions, cr.ivpsc.rgb_colors);
+            }
+
+            for (auto &ib : curr_ui.get_input_boxes()) {
+                batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(
+                    ib.text_drawing_data.indices, ib.text_drawing_data.xyz_positions,
+                    ib.text_drawing_data.texture_coordinates);
+                batcher.absolute_position_with_colored_vertex_shader_batcher.queue_draw(
+                    ib.background_ivpsc.indices, ib.background_ivpsc.xyz_positions, ib.background_ivpsc.rgb_colors);
+            }
+
+            batcher.absolute_position_with_colored_vertex_shader_batcher.draw_everything();
+            batcher.transform_v_with_signed_distance_field_text_shader_batcher.draw_everything();
+
+        } else {
+            // clang-format off
         // Start the game time when the first move is made
         if (!game_started && (lmb_pressed || mine_all_pressed)) {
             game_start_time = glfwGetTime();
@@ -480,40 +521,35 @@ int main() {
         auto [ndc_x, ndc_y] = convert_mouse_to_ndc(mouse_x, mouse_y, current_width, current_height);
         glm::vec3 cursor_pos(ndc_x, ndc_y, 0);
 
-        glUseProgram(shader_program);
-        glUniform1f(aspect_ratio_loc, aspect_ratio);
-
-        if (!grid_colors.size()) {
-            for (int i = 0; i < num_cells_x * num_cells_y; i++) {
-                grid_colors.push_back(glm::vec3{0, 0, 0});
-            }
-        }
-        glBindBuffer(GL_ARRAY_BUFFER, cbo_name);
-        glBufferData(GL_ARRAY_BUFFER, grid_colors.size() * sizeof(glm::vec3), grid_colors.data(), GL_STATIC_DRAW);
-
-        grid_colors.clear();
-
-        glBindVertexArray(vao_name);
-        glDrawElements(GL_TRIANGLES, 6 * grid_rectangles.size(), GL_UNSIGNED_INT, 0);
+        shader_cache.use_shader_program(ShaderType::ABSOLUTE_POSITION_WITH_COLORED_VERTEX);
 
         unsigned int flat_idx = 0;
         for (const auto &row : board) {
             for (const auto &cell : row) {
                 Rectangle graphical_rect = grid_rectangles.at(flat_idx);
 
+                std::vector<glm::vec3> rectangle_vertices = generate_rectangle_vertices(
+                    graphical_rect.center.x, graphical_rect.center.y, graphical_rect.width, graphical_rect.height);
+                std::vector<unsigned int> rectangle_indices = generate_rectangle_indices();
+
+                glm::vec3 rectangle_color;
                 if (cell.is_revealed) {
-                    text_renderer.render_text(std::to_string(cell.adjacent_mines), graphical_rect.center, 1,
-                                              text_color);
-                    grid_colors.push_back(mine_count_to_color.at(cell.adjacent_mines));
+                    // text_renderer.render_text(std::to_string(cell.adjacent_mines), graphical_rect.center, 1,
+                    //                           text_color);
+                    rectangle_color = mine_count_to_color.at(cell.adjacent_mines);
                 } else if (cell.is_flagged) {
-                    text_renderer.render_text("F", graphical_rect.center, 1, flag_text_color / 255.0f);
-                    grid_colors.push_back(flagged_cell_color);
+                    // text_renderer.render_text("F", graphical_rect.center, 1, flag_text_color / 255.0f);
+                    rectangle_color = flagged_cell_color;
                 } else if (cell.safe_start) {
-                    text_renderer.render_text("X", graphical_rect.center, 1, text_color / 255.0f);
-                    grid_colors.push_back(ngs_start_pos_color);
+                    // text_renderer.render_text("X", graphical_rect.center, 1, text_color / 255.0f);
+                    rectangle_color = ngs_start_pos_color;
                 } else {
-                    grid_colors.push_back(unrevelead_cell_color);
+                    rectangle_color = unrevelead_cell_color;
                 }
+
+                std::vector<glm::vec3> rectangle_colors = generate_colors_for_indices({rectangle_color});
+                batcher.absolute_position_with_colored_vertex_shader_batcher.queue_draw(
+                    rectangle_indices, rectangle_vertices, rectangle_colors);
 
                 if (is_point_in_rectangle(graphical_rect, cursor_pos)) {
                     bool trying_to_mine_all =
@@ -553,15 +589,14 @@ int main() {
             }
         }
 
-        grid_colors = generate_colors_for_indices(grid_colors);
-        grid_colors = normalize_rgb_colors(grid_colors);
+        batcher.absolute_position_with_colored_vertex_shader_batcher.draw_everything();
 
         // Render FPS
         std::stringstream fps_ss;
         fps_ss << "FPS: " << std::fixed << std::setprecision(1) << fps;
         std::string fps_text = fps_ss.str();
-        glm::vec2 fps_dims = text_renderer.get_text_dimensions_in_ndc(fps_text, 1);
-        text_renderer.render_text(fps_text, glm::vec2(1, 1) - fps_dims, 1, {0.5, 0.5, 0.5});
+        // glm::vec2 fps_dims = text_renderer.get_text_dimensions_in_ndc(fps_text, 1);
+        // text_renderer.render_text(fps_text, glm::vec2(1, 1) - fps_dims, 1, {0.5, 0.5, 0.5});
 
         // Render elapsed times and average at the top left of the screen
         if (!game_times.empty()) {
@@ -582,23 +617,25 @@ int main() {
             glm::vec2 start_pos = glm::vec2(-0.8f, 1.0f); // Top-left corner of the screen
             glm::vec2 current_pos = start_pos;
 
-            int line_count = 0;
-            // Loop through each line and render it
-            while (std::getline(stream, line)) {
-                if (not show_times) {
-                    if (line_count >= 1) {
-                        break;
-                    }
-                }
-                // Get the dimensions of the current line
-                glm::vec2 line_dims = text_renderer.get_text_dimensions_in_ndc(line, 1);
+            // int line_count = 0;
+            // // Loop through each line and render it
+            // while (std::getline(stream, line)) {
+            //     if (not show_times) {
+            //         if (line_count >= 1) {
+            //             break;
+            //         }
+            //     }
+            //     // Get the dimensions of the current line
+            //     glm::vec2 line_dims = text_renderer.get_text_dimensions_in_ndc(line, 1);
 
-                // Render the current line at the current position
-                text_renderer.render_text(line, current_pos - glm::vec2(0.0f, line_dims.y), 1, {1, 0, 0});
+            //     // Render the current line at the current position
+            //     text_renderer.render_text(line, current_pos - glm::vec2(0.0f, line_dims.y), 1, {1, 0, 0});
 
-                // Move the current position down by the height of the current line
-                current_pos.y -= (line_dims.y + margin);
-                line_count++;
+            //     // Move the current position down by the height of the current line
+            //     current_pos.y -= (line_dims.y + margin);
+            //     line_count++;
+            // }
+                // clang-format on
             }
         }
 
@@ -616,7 +653,7 @@ int main() {
         double frame_end_time = glfwGetTime();
         double frame_duration = frame_end_time - frame_start_time;
         if (frame_duration < max_frame_time) {
-            std::this_thread::sleep_for(std::chrono::duration<double>(max_frame_time - frame_duration));
+            // std::this_thread::sleep_for(std::chrono::duration<double>(max_frame_time - frame_duration));
         }
     }
 

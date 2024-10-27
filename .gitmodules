@@ -28,3 +28,27 @@
 [submodule "assets/text_minefields"]
 	path = assets/text_minefields
 	url = git@github.com:cjmines/text_minefields.git
+[submodule "src/graphics/shader_standard"]
+	path = src/graphics/shader_standard
+	url = git@github.com:cpp-toolbox/shader_standard.git
+[submodule "src/graphics/batcher"]
+	path = src/graphics/batcher
+	url = git@github.com:cpp-toolbox/batcher.git
+[submodule "src/graphics/ui"]
+	path = src/graphics/ui
+	url = git@github.com:cpp-toolbox/ui.git
+[submodule "src/graphics/font_atlas"]
+	path = src/graphics/font_atlas
+	url = git@github.com:cpp-toolbox/font_atlas.git
+[submodule "src/graphics/texture_atlas"]
+	path = src/graphics/texture_atlas
+	url = git@github.com:cpp-toolbox/texture_atlas.git
+[submodule "src/graphics/draw_info"]
+	path = src/graphics/draw_info
+	url = git@github.com:cpp-toolbox/draw_info.git
+[submodule "src/graphics/transform"]
+	path = src/graphics/transform
+	url = git@github.com:cpp-toolbox/transform.git
+[submodule "src/graphics/colors"]
+	path = src/graphics/colors
+	url = git@github.com:cpp-toolbox/colors.git
