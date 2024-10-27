@@ -7,6 +7,7 @@ openal-soft/1.23.1
 libsndfile/1.2.2
 glm/cci.20230113
 stb/cci.20240531
+nlohmann_json/3.11.3
 [generators]
 CMakeDeps
 CMakeToolchain
