@@ -1,0 +1,2 @@
+absolute_position_with_colored_vertex
+transform_v_with_signed_distance_field_text
