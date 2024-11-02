@@ -11,6 +11,7 @@
 #include "graphics/batcher/generated/batcher.hpp"
 #include "graphics/ui/ui.hpp"
 #include "graphics/colors/colors.hpp"
+#include "graphics/glfw_lambda_callback_manager/glfw_lambda_callback_manager.hpp"
 #include <GLFW/glfw3.h>
 #include <iostream>
 #include <iomanip> // For formatting output
@@ -18,27 +19,26 @@
 #include <vector>
 #include <glm/vec3.hpp> // Ensure you include the GLM library for glm::vec3
 
-Colors colors;
-
 unsigned int SCREEN_WIDTH = 640;
 unsigned int SCREEN_HEIGHT = 480;
 
-glm::vec3 center(0.0f, 0.0f, 0.0f);
-float width = 2.0f;
-float height = 2.0f;
-float spacing = 0.01f;
+const glm::vec3 center(0.0f, 0.0f, 0.0f);
+const float width = 2.0f;
+const float height = 2.0f;
+const float spacing = 0.01f;
 
-std::unordered_map<unsigned int, glm::vec3> mine_count_to_color = {
+const Colors colors;
+const std::unordered_map<unsigned int, glm::vec3> mine_count_to_color = {
     {0, colors.grey70},         {1, colors.lightskyblue}, {2, colors.aquamarine3},  {3, colors.pastelred},
     {4, colors.mutedlimegreen}, {5, colors.maroon2},      {6, colors.mutedhotpink}, {7, colors.mustardyellow},
 };
 
-auto unrevelead_cell_color = colors.brown;
-auto flagged_cell_color = colors.brown;
-auto ngs_start_pos_color = colors.limegreen;
+const auto unrevelead_cell_color = colors.brown;
+const auto flagged_cell_color = colors.brown;
+const auto ngs_start_pos_color = colors.limegreen;
 
-auto text_color = colors.black;
-auto flag_text_color = colors.purple;
+const auto text_color = colors.black;
+const auto flag_text_color = colors.purple;
 
 bool is_point_in_rectangle(const Rectangle &rect, const glm::vec3 &point) {
     float half_width = rect.width / 2.0f;
@@ -52,57 +52,6 @@ bool is_point_in_rectangle(const Rectangle &rect, const glm::vec3 &point) {
     return (point.x >= left_bound && point.x <= right_bound && point.y >= bottom_bound && point.y <= top_bound);
 }
 
-static double mouse_x, mouse_y;
-
-/**
- * @brief GLFW mouse callback function to get mouse position in screen coordinates.
- */
-static void mouse_callback(GLFWwindow *window, double xpos, double ypos) {
-    mouse_x = xpos;
-    mouse_y = ypos;
-}
-
-bool lmb_pressed = false;
-bool lmb_pressed_last_tick = false;
-bool rmb_pressed = false;
-bool rmb_pressed_last_tick = false;
-
-void mouse_button_callback(GLFWwindow *window, int button, int action, int mods) {
-    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-        lmb_pressed = true;
-    } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-        lmb_pressed = false;
-    }
-
-    if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-        rmb_pressed = true;
-    } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
-        rmb_pressed = false;
-    }
-}
-
-bool left_shift_pressed = false;
-
-bool flag_all_pressed = false;
-bool flag_all_pressed_last_tick = false;
-
-bool unflag_all_pressed = false;
-bool unflag_all_pressed_last_tick = false;
-
-bool flag_one_pressed = false;
-bool flag_one_pressed_last_tick = false;
-
-bool mine_all_pressed = false;
-bool mine_all_pressed_last_tick = false;
-
-bool mine_one_pressed = false;
-bool mine_one_pressed_last_tick = false;
-
-bool show_times = false;
-
-bool user_requested_quit = false;
-
-int key_pressed_this_tick = GLFW_KEY_UNKNOWN;
 std::string key_to_string(int key) {
     static const std::unordered_map<int, std::string> key_map = {
         {GLFW_KEY_A, "a"}, {GLFW_KEY_B, "b"},    {GLFW_KEY_C, "c"}, {GLFW_KEY_D, "d"}, {GLFW_KEY_E, "e"},
@@ -121,70 +70,7 @@ std::string key_to_string(int key) {
     return (it != key_map.end()) ? it->second : "";
 }
 
-void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-
-    if (key == GLFW_KEY_LEFT_SHIFT) {
-        if (action == GLFW_PRESS) {
-            left_shift_pressed = true;
-        }
-        if (action == GLFW_RELEASE) {
-            left_shift_pressed = false;
-        }
-    }
-
-    if (key == GLFW_KEY_R) {
-        if (action == GLFW_PRESS && left_shift_pressed) {
-           unflag_all_pressed = true;
-        }
-        if (action == GLFW_RELEASE) {
-            unflag_all_pressed = false;
-        }
-    }
-
-    if (key == GLFW_KEY_F) {
-        if (action == GLFW_PRESS) {
-            if (left_shift_pressed) {
-                flag_all_pressed = true;
-            } else {
-                flag_one_pressed = true;
-            }
-        }
-        if (action == GLFW_RELEASE) {
-            flag_all_pressed = false;
-            flag_one_pressed = false;
-        }
-    }
-
-    if (key == GLFW_KEY_TAB) {
-        if (action == GLFW_PRESS) {
-            show_times = !show_times;
-        }
-    }
-    if (key == GLFW_KEY_Q) {
-        if (action == GLFW_PRESS) {
-            user_requested_quit = true;
-        }
-    }
-    if (key == GLFW_KEY_D) {
-        if (action == GLFW_PRESS) {
-            if (left_shift_pressed) {
-                mine_one_pressed = true;
-            } else {
-                mine_all_pressed = true;
-            }
-        }
-        if (action == GLFW_RELEASE) {
-            mine_all_pressed = false;
-            mine_one_pressed = false;
-        }
-    }
-
-    if (action == GLFW_PRESS) {
-        key_pressed_this_tick = key; // Store the key pressed this tick
-    }
-}
-
-void process_key_pressed_this_tick(UI &ui) {
+void process_key_pressed_this_tick(UI &ui, int &key_pressed_this_tick) {
     if (key_pressed_this_tick != GLFW_KEY_UNKNOWN) {
         std::string key_string = key_to_string(key_pressed_this_tick);
         if (!key_string.empty()) {
@@ -265,10 +151,13 @@ UI create_main_menu(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_s
 }
 
 UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &board, float &mine_percentage,
-                       int &num_cells_x, int &num_cells_y, int &mine_count) {
+                       int &num_cells_x, int &num_cells_y, int &mine_count, std::vector<Rectangle> &grid_rectangles) {
     UI in_game_ui(font_atlas);
 
     std::function<void(std::string)> on_width_confirm = [&](std::string contents) {
+        if (contents.empty())
+            return;
+        std::cout << contents.size() << std::endl;
         num_cells_x = std::stoi(contents);
         mine_count = num_cells_x * num_cells_y * mine_percentage;
         std::cout << "mine_percentage: " << mine_percentage << std::endl;
@@ -277,6 +166,8 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
         std::cout << "mine_count: " << mine_count << std::endl;
     };
     std::function<void(std::string)> on_height_confirm = [&](std::string contents) {
+        if (contents.empty())
+            return;
         num_cells_y = std::stoi(contents);
         mine_count = num_cells_x * num_cells_y * mine_percentage;
         std::cout << "mine_percentage: " << mine_percentage << std::endl;
@@ -285,6 +176,8 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
         std::cout << "mine_count: " << mine_count << std::endl;
     };
     std::function<void(std::string)> on_mine_count_confirm = [&](std::string contents) {
+        if (contents.empty())
+            return;
         mine_count = std::stoi(contents);
         mine_percentage = static_cast<float>(mine_count) / static_cast<float>(num_cells_x * num_cells_y);
         std::cout << "mine_percentage: " << mine_percentage << std::endl;
@@ -301,6 +194,7 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
         std::cout << "mine_count: " << mine_count << std::endl;
         // TODO: NGS config
         board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
+        grid_rectangles = generate_grid_rectangles(center, width, height, num_cells_x, num_cells_y, spacing);
         curr_state = IN_GAME;
     };
 
@@ -316,8 +210,6 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
 }
 
 int main() {
-    GameState curr_state = MAIN_MENU;
-
     float mine_percentage = 0.15;
     int num_cells_x = 10;
     int num_cells_y = 10;
@@ -381,19 +273,144 @@ int main() {
 
     GLFWwindow *window =
         initialize_glfw_glad_and_return_window(SCREEN_WIDTH, SCREEN_HEIGHT, "cjmines", true, false, false);
-    glfwSetCursorPosCallback(window, mouse_callback);
-    glfwSetMouseButtonCallback(window, mouse_button_callback);
-    glfwSetKeyCallback(window, key_callback);
 
     std::vector<ShaderType> requested_shaders = {ShaderType::ABSOLUTE_POSITION_WITH_COLORED_VERTEX,
                                                  ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT};
     ShaderCache shader_cache(requested_shaders);
     Batcher batcher(shader_cache);
 
-    std::vector<Rectangle> grid_rectangles =
-        generate_grid_rectangles(center, width, height, num_cells_x, num_cells_y, spacing);
+    std::vector<Rectangle> grid_rectangles;
 
     /*auto copied_colors = original_colors;*/
+
+    FontAtlas font_atlas("assets/fonts/times_64_sdf_atlas_font_info.json", "assets/fonts/times_64_sdf_atlas.json",
+                         "assets/fonts/times_64_sdf_atlas.png", SCREEN_WIDTH, false, true);
+
+    GameState curr_state = MAIN_MENU;
+    std::unordered_map<GameState, UI> game_state_to_ui = {
+        {MAIN_MENU, create_main_menu(window, font_atlas, curr_state)},
+        {OPTIONS_PAGE, create_options_page(font_atlas, curr_state, board, mine_percentage, num_cells_x, num_cells_y,
+                                           mine_count, grid_rectangles)}};
+
+    std::function<void(unsigned int)> char_callback = [&](unsigned int codepoint) {};
+
+    bool user_requested_quit = false;
+
+    int key_pressed_this_tick = GLFW_KEY_UNKNOWN;
+
+    bool left_shift_pressed = false;
+
+    bool flag_all_pressed = false;
+    bool flag_all_pressed_last_tick = false;
+
+    bool unflag_all_pressed = false;
+    bool unflag_all_pressed_last_tick = false;
+
+    bool flag_one_pressed = false;
+    bool flag_one_pressed_last_tick = false;
+
+    bool mine_all_pressed = false;
+    bool mine_all_pressed_last_tick = false;
+
+    bool mine_one_pressed = false;
+    bool mine_one_pressed_last_tick = false;
+
+    bool show_times = false;
+
+    std::function<void(int, int, int, int)> key_callback = [&](int key, int scancode, int action, int mods) {
+        if (key == GLFW_KEY_LEFT_SHIFT) {
+            if (action == GLFW_PRESS) {
+                left_shift_pressed = true;
+            }
+            if (action == GLFW_RELEASE) {
+                left_shift_pressed = false;
+            }
+        }
+
+        if (key == GLFW_KEY_R) {
+            if (action == GLFW_PRESS && left_shift_pressed) {
+                unflag_all_pressed = true;
+            }
+            if (action == GLFW_RELEASE) {
+                unflag_all_pressed = false;
+            }
+        }
+
+        if (key == GLFW_KEY_F) {
+            if (action == GLFW_PRESS) {
+                if (left_shift_pressed) {
+                    flag_all_pressed = true;
+                } else {
+                    flag_one_pressed = true;
+                }
+            }
+            if (action == GLFW_RELEASE) {
+                flag_all_pressed = false;
+                flag_one_pressed = false;
+            }
+        }
+
+        if (key == GLFW_KEY_TAB) {
+            if (action == GLFW_PRESS) {
+                show_times = !show_times;
+            }
+        }
+        if (key == GLFW_KEY_Q) {
+            if (action == GLFW_PRESS) {
+                user_requested_quit = true;
+            }
+        }
+        if (key == GLFW_KEY_D) {
+            if (action == GLFW_PRESS) {
+                if (left_shift_pressed) {
+                    mine_one_pressed = true;
+                } else {
+                    mine_all_pressed = true;
+                }
+            }
+            if (action == GLFW_RELEASE) {
+                mine_all_pressed = false;
+                mine_one_pressed = false;
+            }
+        }
+
+        if (action == GLFW_PRESS) {
+            key_pressed_this_tick = key; // Store the key pressed this tick
+        }
+
+        // process input text boxes
+        if (game_state_to_ui.count(curr_state))
+            game_state_to_ui.at(curr_state).process_confirm_action();
+    };
+
+    double mouse_x, mouse_y;
+
+    std::function<void(double, double)> mouse_callback = [&](double xpos, double ypos) {
+        mouse_x = xpos;
+        mouse_y = ypos;
+    };
+
+    bool lmb_pressed = false;
+    bool lmb_pressed_last_tick = false;
+    bool rmb_pressed = false;
+    bool rmb_pressed_last_tick = false;
+
+    std::function<void(int, int, int)> mouse_button_callback = [&](int button, int action, int mods) {
+        if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+            lmb_pressed = true;
+        } else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+            lmb_pressed = false;
+        }
+
+        if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+            rmb_pressed = true;
+        } else if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_RELEASE) {
+            rmb_pressed = false;
+        }
+    };
+
+    GLFWLambdaCallbackManager window_callback_manager(window, char_callback, key_callback, mouse_callback,
+                                                      mouse_button_callback);
 
     SoundSystem sound_system;
 
@@ -407,9 +424,6 @@ int main() {
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-    FontAtlas font_atlas("assets/fonts/times_64_sdf_atlas_font_info.json", "assets/fonts/times_64_sdf_atlas.json",
-                         "assets/fonts/times_64_sdf_atlas.png", SCREEN_WIDTH, false, true);
 
     glm::mat4 projection = glm::mat4(1);
     auto text_color = glm::vec3(0.0, 0.0, 0.0);
@@ -428,11 +442,6 @@ int main() {
 
     shader_cache.set_uniform(ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT,
                              ShaderUniformVariable::EDGE_TRANSITION_WIDTH, edge_transition);
-
-    std::unordered_map<GameState, UI> game_state_to_ui = {
-        {MAIN_MENU, create_main_menu(window, font_atlas, curr_state)},
-        {OPTIONS_PAGE,
-         create_options_page(font_atlas, curr_state, board, mine_percentage, num_cells_x, num_cells_y, mine_count)}};
 
     double previous_time = glfwGetTime();
     int frame_count = 0;
@@ -467,10 +476,9 @@ int main() {
                 curr_ui.process_mouse_just_clicked(ndc_mouse_pos_vec);
             }
 
-            process_key_pressed_this_tick(curr_ui);
+            process_key_pressed_this_tick(curr_ui, key_pressed_this_tick);
 
             if (curr_state == END_GAME) {
-                
             }
 
             for (auto &tb : curr_ui.get_text_boxes()) {
