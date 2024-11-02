@@ -3,7 +3,6 @@
 
 #include <glad/glad.h>
 #include "shader_cache/shader_cache.hpp"
-// #include "text_renderer/text_renderer.hpp"
 #include "vertex_geometry/vertex_geometry.hpp"
 #include "window/window.hpp"
 #include "sound_system/sound_system.hpp"
@@ -392,8 +391,6 @@ int main() {
 
     sound_system.create_sound_source("cell");
 
-    // TextRenderer text_renderer("assets/fonts/cnr.otf", 50, SCREEN_WIDTH, SCREEN_HEIGHT, shader_cache);
-
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -402,7 +399,7 @@ int main() {
                          "assets/fonts/times_64_sdf_atlas.png", SCREEN_WIDTH, false, true);
 
     glm::mat4 projection = glm::mat4(1);
-    auto text_color = glm::vec3(0.5, 0.5, 1);
+    auto text_color = glm::vec3(0.0, 0.0, 0.0);
     float char_width = 0.5;
     float edge_transition = 0.1;
 
