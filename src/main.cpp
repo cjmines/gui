@@ -316,10 +316,27 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
     return in_game_ui;
 }
 
+UI create_ending_page(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state, double avg_time) {
+    UI end_ui(font_atlas);
+
+    std::function<void()> on_play = [&]() { curr_state = OPTIONS_PAGE; };
+    std::function<void()> on_quit = [&]() { glfwSetWindowShouldClose(window, GLFW_TRUE); };
+
+    std::stringstream stream;
+    stream << std::fixed << std::setprecision(2) << avg_time;
+
+    end_ui.add_textbox("Game End", 0, 0.75, 1, 0.25, colors.grey);
+    end_ui.add_textbox("Average game time: " + stream.str() + " seconds", 0, 0.50, 0.6, 0.25, colors.yellow);
+    end_ui.add_clickable_textbox(on_play, "Replay", 0.65, -0.65, 0.5, 0.5, colors.darkgreen, colors.green);
+    end_ui.add_clickable_textbox(on_quit, "Quit", -0.65, -0.65, 0.5, 0.5, colors.darkred, colors.red);
+
+    return end_ui;
+}
+
 int main() {
     GameState curr_state = MAIN_MENU;
 
-    float mine_percentage = 0.15;
+    float mine_percentage = 0.10;
     int num_cells_x = 10;
     int num_cells_y = 10;
     int mine_count = num_cells_x * num_cells_y * mine_percentage;
@@ -435,7 +452,8 @@ int main() {
     std::unordered_map<GameState, UI> game_state_to_ui = {
         {MAIN_MENU, create_main_menu(window, font_atlas, curr_state)},
         {OPTIONS_PAGE,
-         create_options_page(font_atlas, curr_state, board, mine_percentage, num_cells_x, num_cells_y, mine_count)}};
+         create_options_page(font_atlas, curr_state, board, mine_percentage, num_cells_x, num_cells_y, mine_count)}
+    };
 
     double previous_time = glfwGetTime();
     int frame_count = 0;
@@ -451,6 +469,7 @@ int main() {
     std::vector<double> game_times;
     double total_time = 0.0;
     int games_played = 0;
+    int games_threshold = 1;
 
     // Main game loop
     while (!glfwWindowShouldClose(window) and !user_requested_quit) {
@@ -471,10 +490,6 @@ int main() {
             }
 
             process_key_pressed_this_tick(curr_ui);
-
-            if (curr_state == END_GAME) {
-                
-            }
 
             for (auto &tb : curr_ui.get_text_boxes()) {
                 batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(
@@ -514,13 +529,29 @@ int main() {
         if (field_clear(board)) {
             std::cout << "field was clear" << std::endl;
             sound_system.play_sound("cell", "success");
-
+            
             // Calculate elapsed time and store it
             if (game_started) {
                 double game_time = glfwGetTime() - game_start_time;
                 game_times.push_back(game_time);
                 total_time += game_time;
                 games_played++;
+            }
+
+            if (games_played >= games_threshold) {
+                games_played = 0;
+
+                float avg_time = 0;
+                for (auto& i : game_times) {
+                    avg_time += i;
+                }
+                avg_time /= games_threshold;
+
+                std::cout << avg_time << "\n";
+                game_times.clear();
+                game_state_to_ui.insert_or_assign(END_GAME, create_ending_page(window, font_atlas, curr_state, avg_time));
+                curr_state = END_GAME;
+                continue;
             }
 
             game_started = false; // Reset game start flag for the next game
