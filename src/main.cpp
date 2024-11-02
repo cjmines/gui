@@ -1,9 +1,9 @@
+#include "sound_types/sound_types.hpp"
 #define STB_IMAGE_IMPLEMENTATION // Define this in exactly one source file
 #include <stb_image.h>
 
 #include <glad/glad.h>
 #include "shader_cache/shader_cache.hpp"
-// #include "text_renderer/text_renderer.hpp"
 #include "vertex_geometry/vertex_geometry.hpp"
 #include "window/window.hpp"
 #include "sound_system/sound_system.hpp"
@@ -301,7 +301,7 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
         std::cout << "num_cells_y: " << num_cells_y << std::endl;
         std::cout << "mine_count: " << mine_count << std::endl;
         // TODO: NGS config
-        board = generate_board(mine_count, num_cells_x, num_cells_y);
+        board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
         curr_state = IN_GAME;
     };
 
@@ -316,21 +316,28 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
     return in_game_ui;
 }
 
-UI create_ending_page(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state, double avg_time) {
-    UI end_ui(font_atlas);
+SoundType get_random_mine_sound() {
+    static std::vector<SoundType> mine_sounds = {SoundType::MINE_0, SoundType::MINE_1, SoundType::MINE_2,
+                                                 SoundType::MINE_3, SoundType::MINE_4, SoundType::MINE_5,
+                                                 SoundType::MINE_6};
 
-    std::function<void()> on_play = [&]() { curr_state = OPTIONS_PAGE; };
-    std::function<void()> on_quit = [&]() { glfwSetWindowShouldClose(window, GLFW_TRUE); };
+    // random number generator
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<size_t> dist(0, mine_sounds.size() - 1);
 
-    std::stringstream stream;
-    stream << std::fixed << std::setprecision(2) << avg_time;
+    return mine_sounds[dist(gen)];
+}
 
-    end_ui.add_textbox("Game End", 0, 0.75, 1, 0.25, colors.grey);
-    end_ui.add_textbox("Average game time: " + stream.str() + " seconds", 0, 0.50, 0.6, 0.25, colors.yellow);
-    end_ui.add_clickable_textbox(on_play, "Replay", 0.65, -0.65, 0.5, 0.5, colors.darkgreen, colors.green);
-    end_ui.add_clickable_textbox(on_quit, "Quit", -0.65, -0.65, 0.5, 0.5, colors.darkred, colors.red);
+SoundType get_random_flag_sound() {
+    static std::vector<SoundType> flag_sounds = {SoundType::FLAG_0, SoundType::FLAG_1};
 
-    return end_ui;
+    // random number generator
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<size_t> dist(0, flag_sounds.size() - 1);
+
+    return flag_sounds[dist(gen)];
 }
 
 int main() {
@@ -413,16 +420,24 @@ int main() {
 
     /*auto copied_colors = original_colors;*/
 
-    SoundSystem sound_system;
+    std::unordered_map<SoundType, std::string> sound_type_to_file = {
+        {SoundType::FLAG_0, "assets/audio/flag/flag_0.mp3"}, {SoundType::FLAG_1, "assets/audio/flag/flag_1.mp3"},
+        {SoundType::MINE_0, "assets/audio/mine/mine_0.mp3"}, {SoundType::MINE_1, "assets/audio/mine/mine_1.mp3"},
+        {SoundType::MINE_2, "assets/audio/mine/mine_2.mp3"}, {SoundType::MINE_3, "assets/audio/mine/mine_3.mp3"},
+        {SoundType::MINE_4, "assets/audio/mine/mine_4.mp3"}, {SoundType::MINE_5, "assets/audio/mine/mine_5.mp3"},
+        {SoundType::MINE_6, "assets/audio/mine/mine_6.mp3"}, {SoundType::SUCCESS, "assets/audio/success.mp3"},
+        {SoundType::EXPLOSION, "assets/audio/explosion.mp3"}};
 
-    sound_system.load_sound_into_system_for_playback("mine", "assets/audio/mine/output_12.mp3");
-    sound_system.load_sound_into_system_for_playback("flag", "assets/audio/flag/flag_0.mp3");
-    sound_system.load_sound_into_system_for_playback("success", "assets/audio/success.mp3");
-    sound_system.load_sound_into_system_for_playback("explosion", "assets/audio/explosion.mp3");
+    const unsigned int max_concurrent_sounds = 100;
 
-    sound_system.create_sound_source("cell");
+    SoundSystem sound_system(max_concurrent_sounds, sound_type_to_file);
 
-    // TextRenderer text_renderer("assets/fonts/cnr.otf", 50, SCREEN_WIDTH, SCREEN_HEIGHT, shader_cache);
+    /*sound_system.load_sound_into_system_for_playback("mine", "assets/audio/mine/output_12.mp3");*/
+    /*sound_system.load_sound_into_system_for_playback("flag", "assets/audio/flag/flag_0.mp3");*/
+    /*sound_system.load_sound_into_system_for_playback("success", "assets/audio/success.mp3");*/
+    /*sound_system.load_sound_into_system_for_playback("explosion", "assets/audio/explosion.mp3");*/
+
+    /*sound_system.create_sound_source("cell");*/
 
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -432,7 +447,7 @@ int main() {
                          "assets/fonts/times_64_sdf_atlas.png", SCREEN_WIDTH, false, true);
 
     glm::mat4 projection = glm::mat4(1);
-    auto text_color = glm::vec3(0.5, 0.5, 1);
+    auto text_color = glm::vec3(0.0, 0.0, 0.0);
     float char_width = 0.5;
     float edge_transition = 0.1;
 
@@ -528,8 +543,8 @@ int main() {
 
         if (field_clear(board)) {
             std::cout << "field was clear" << std::endl;
-            sound_system.play_sound("cell", "success");
-            
+                sound_system.queue_sound(SoundType::SUCCESS, center);
+
             // Calculate elapsed time and store it
             if (game_started) {
                 double game_time = glfwGetTime() - game_start_time;
@@ -565,7 +580,7 @@ int main() {
         }
 
         if (!sucessfully_mined) {
-            sound_system.play_sound("cell", "explosion");
+                sound_system.queue_sound(SoundType::EXPLOSION, center);
             std::cout << "you died" << std::endl;
 
             // Calculate elapsed time and store it
@@ -633,7 +648,7 @@ int main() {
                 }
 
                 if (text != "" && text != "0") {
-                    TextMesh text_mesh = font_atlas.generate_text_mesh_size_constraints(text, graphical_rect.center.x, graphical_rect.center.y, graphical_rect.width, graphical_rect.height);
+                    TextMesh text_mesh = font_atlas.generate_text_mesh_size_constraints(text, graphical_rect.center.x, graphical_rect.center.y, graphical_rect.width * 0.5, graphical_rect.height * 0.5);
                     batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(text_mesh.indices, text_mesh.vertex_positions, text_mesh.texture_coordinates);
                 }
 
@@ -661,7 +676,8 @@ int main() {
                             std::cout << "mining all" << std::endl;
                             sucessfully_mined = reveal_adjacent_cells(board, row_idx, col_idx);
                         }
-                        sound_system.play_sound("cell", "mine");
+                            // todo use positional sound based on row and col idx later
+                        sound_system.queue_sound(get_random_mine_sound(), center);
                     }
 
                     if (trying_to_flag_all) {
@@ -674,7 +690,7 @@ int main() {
                             std::cout << "flagging all" << std::endl;
                             set_adjacent_cells_flags(board, row_idx, col_idx, true);
                         }
-                        sound_system.play_sound("cell", "flag");
+                        sound_system.queue_sound(get_random_flag_sound(), center);
                     }
 
                     if (trying_to_unflag_all) {
@@ -689,15 +705,15 @@ int main() {
             }
         }
 
-        batcher.absolute_position_with_colored_vertex_shader_batcher.draw_everything();
-        batcher.transform_v_with_signed_distance_field_text_shader_batcher.draw_everything();
-
         // Render FPS
         std::stringstream fps_ss;
         fps_ss << "FPS: " << std::fixed << std::setprecision(1) << fps;
         std::string fps_text = fps_ss.str();
-        // glm::vec2 fps_dims = text_renderer.get_text_dimensions_in_ndc(fps_text, 1);
-        // text_renderer.render_text(fps_text, glm::vec2(1, 1) - fps_dims, 1, {0.5, 0.5, 0.5});
+        TextMesh fps_text_mesh = font_atlas.generate_text_mesh_size_constraints(fps_text, 0.9, 0.9, 0.15, 0.15);
+        batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(fps_text_mesh.indices, fps_text_mesh.vertex_positions, fps_text_mesh.texture_coordinates);
+
+        batcher.absolute_position_with_colored_vertex_shader_batcher.draw_everything();
+        batcher.transform_v_with_signed_distance_field_text_shader_batcher.draw_everything();
 
         // Render elapsed times and average at the top left of the screen
         if (!game_times.empty()) {
@@ -746,6 +762,8 @@ int main() {
         flag_one_pressed_last_tick = flag_one_pressed;
         mine_all_pressed_last_tick = mine_all_pressed;
         mine_one_pressed_last_tick = mine_one_pressed;
+
+        sound_system.play_all_sounds();
 
         glfwSwapBuffers(window);
         glfwPollEvents();

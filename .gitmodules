@@ -52,3 +52,6 @@
 [submodule "src/graphics/colors"]
 	path = src/graphics/colors
 	url = git@github.com:cpp-toolbox/colors.git
+[submodule "src/graphics/glfw_lambda_callback_manager"]
+	path = src/graphics/glfw_lambda_callback_manager
+	url = git@github.com:cpp-toolbox/glfw_lambda_callback_manager.git
