@@ -289,7 +289,7 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
         std::cout << "num_cells_y: " << num_cells_y << std::endl;
         std::cout << "mine_count: " << mine_count << std::endl;
         // TODO: NGS config
-        board = generate_board(mine_count, num_cells_x, num_cells_y);
+        board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
         curr_state = IN_GAME;
     };
 
@@ -585,7 +585,7 @@ int main() {
                 }
 
                 if (text != "" && text != "0") {
-                    TextMesh text_mesh = font_atlas.generate_text_mesh_size_constraints(text, graphical_rect.center.x, graphical_rect.center.y, graphical_rect.width, graphical_rect.height);
+                    TextMesh text_mesh = font_atlas.generate_text_mesh_size_constraints(text, graphical_rect.center.x, graphical_rect.center.y, graphical_rect.width * 0.5, graphical_rect.height * 0.5);
                     batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(text_mesh.indices, text_mesh.vertex_positions, text_mesh.texture_coordinates);
                 }
 
@@ -631,15 +631,15 @@ int main() {
             }
         }
 
-        batcher.absolute_position_with_colored_vertex_shader_batcher.draw_everything();
-        batcher.transform_v_with_signed_distance_field_text_shader_batcher.draw_everything();
-
         // Render FPS
         std::stringstream fps_ss;
         fps_ss << "FPS: " << std::fixed << std::setprecision(1) << fps;
         std::string fps_text = fps_ss.str();
-        // glm::vec2 fps_dims = text_renderer.get_text_dimensions_in_ndc(fps_text, 1);
-        // text_renderer.render_text(fps_text, glm::vec2(1, 1) - fps_dims, 1, {0.5, 0.5, 0.5});
+        TextMesh fps_text_mesh = font_atlas.generate_text_mesh_size_constraints(fps_text, 0.9, 0.9, 0.15, 0.15);
+        batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(fps_text_mesh.indices, fps_text_mesh.vertex_positions, fps_text_mesh.texture_coordinates);
+
+        batcher.absolute_position_with_colored_vertex_shader_batcher.draw_everything();
+        batcher.transform_v_with_signed_distance_field_text_shader_batcher.draw_everything();
 
         // Render elapsed times and average at the top left of the screen
         if (!game_times.empty()) {
