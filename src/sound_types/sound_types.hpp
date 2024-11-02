@@ -1,0 +1,6 @@
+#ifndef SOUND_TYPES_HPP
+#define SOUND_TYPES_HPP
+
+enum class SoundType { FLAG_0, FLAG_1, MINE_0, MINE_1, MINE_2, MINE_3, MINE_4, MINE_5, MINE_6, SUCCESS, EXPLOSION };
+
+#endif // SOUND_TYPES_HPP

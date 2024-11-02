@@ -1,3 +1,4 @@
+#include "sound_types/sound_types.hpp"
 #define STB_IMAGE_IMPLEMENTATION // Define this in exactly one source file
 #include <stb_image.h>
 
@@ -135,6 +136,30 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
     return board;
 }
 
+GLFWcursor *create_custom_cursor(const char *image_path, int hotspot_x, int hotspot_y) {
+    // Load image data using stb_image
+    int width, height, channels;
+    unsigned char *data = stbi_load(image_path, &width, &height, &channels, 4); // 4 = RGBA channels
+    if (!data) {
+        std::cerr << "Failed to load cursor image: " << image_path << std::endl;
+        return nullptr;
+    }
+
+    // Create an image for the GLFW cursor
+    GLFWimage image;
+    image.width = width;
+    image.height = height;
+    image.pixels = data;
+
+    // Create the cursor with the given hotspot
+    GLFWcursor *cursor = glfwCreateCursor(&image, hotspot_x, hotspot_y);
+
+    // Free image data after cursor creation
+    stbi_image_free(data);
+
+    return cursor;
+}
+
 enum GameState { MAIN_MENU, OPTIONS_PAGE, IN_GAME, END_GAME };
 
 UI create_main_menu(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state) {
@@ -209,6 +234,47 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
     return in_game_ui;
 }
 
+UI create_ending_page(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state, double avg_time) {
+    UI end_ui(font_atlas);
+
+    std::function<void()> on_play = [&]() { curr_state = OPTIONS_PAGE; };
+    std::function<void()> on_quit = [&]() { glfwSetWindowShouldClose(window, GLFW_TRUE); };
+
+    std::stringstream stream;
+    stream << std::fixed << std::setprecision(2) << avg_time;
+
+    end_ui.add_textbox("Game End", 0, 0.75, 1, 0.25, colors.grey);
+    end_ui.add_textbox("Average game time: " + stream.str() + " seconds", 0, 0.50, 0.6, 0.25, colors.yellow);
+    end_ui.add_clickable_textbox(on_play, "Replay", 0.65, -0.65, 0.5, 0.5, colors.darkgreen, colors.green);
+    end_ui.add_clickable_textbox(on_quit, "Quit", -0.65, -0.65, 0.5, 0.5, colors.darkred, colors.red);
+
+    return end_ui;
+}
+
+SoundType get_random_mine_sound() {
+    static std::vector<SoundType> mine_sounds = {SoundType::MINE_0, SoundType::MINE_1, SoundType::MINE_2,
+                                                 SoundType::MINE_3, SoundType::MINE_4, SoundType::MINE_5,
+                                                 SoundType::MINE_6};
+
+    // random number generator
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<size_t> dist(0, mine_sounds.size() - 1);
+
+    return mine_sounds[dist(gen)];
+}
+
+SoundType get_random_flag_sound() {
+    static std::vector<SoundType> flag_sounds = {SoundType::FLAG_0, SoundType::FLAG_1};
+
+    // random number generator
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    std::uniform_int_distribution<size_t> dist(0, flag_sounds.size() - 1);
+
+    return flag_sounds[dist(gen)];
+}
+
 int main() {
     float mine_percentage = 0.15;
     int num_cells_x = 10;
@@ -273,6 +339,11 @@ int main() {
 
     GLFWwindow *window =
         initialize_glfw_glad_and_return_window(SCREEN_WIDTH, SCREEN_HEIGHT, "cjmines", true, false, false);
+
+    GLFWcursor *custom_cursor = create_custom_cursor("assets/crosshair/cross_64.png", 32, 32);
+    if (custom_cursor) {
+        glfwSetCursor(window, custom_cursor);
+    }
 
     std::vector<ShaderType> requested_shaders = {ShaderType::ABSOLUTE_POSITION_WITH_COLORED_VERTEX,
                                                  ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT};
@@ -412,14 +483,24 @@ int main() {
     GLFWLambdaCallbackManager window_callback_manager(window, char_callback, key_callback, mouse_callback,
                                                       mouse_button_callback);
 
-    SoundSystem sound_system;
+    std::unordered_map<SoundType, std::string> sound_type_to_file = {
+        {SoundType::FLAG_0, "assets/audio/flag/flag_0.mp3"}, {SoundType::FLAG_1, "assets/audio/flag/flag_1.mp3"},
+        {SoundType::MINE_0, "assets/audio/mine/mine_0.mp3"}, {SoundType::MINE_1, "assets/audio/mine/mine_1.mp3"},
+        {SoundType::MINE_2, "assets/audio/mine/mine_2.mp3"}, {SoundType::MINE_3, "assets/audio/mine/mine_3.mp3"},
+        {SoundType::MINE_4, "assets/audio/mine/mine_4.mp3"}, {SoundType::MINE_5, "assets/audio/mine/mine_5.mp3"},
+        {SoundType::MINE_6, "assets/audio/mine/mine_6.mp3"}, {SoundType::SUCCESS, "assets/audio/success.mp3"},
+        {SoundType::EXPLOSION, "assets/audio/explosion.mp3"}};
 
-    sound_system.load_sound_into_system_for_playback("mine", "assets/audio/mine/output_12.mp3");
-    sound_system.load_sound_into_system_for_playback("flag", "assets/audio/flag/flag_0.mp3");
-    sound_system.load_sound_into_system_for_playback("success", "assets/audio/success.mp3");
-    sound_system.load_sound_into_system_for_playback("explosion", "assets/audio/explosion.mp3");
+    int max_concurrent_sounds = 100;
 
-    sound_system.create_sound_source("cell");
+    SoundSystem sound_system(max_concurrent_sounds, sound_type_to_file);
+
+    /*sound_system.load_sound_into_system_for_playback("mine", "assets/audio/mine/output_12.mp3");*/
+    /*sound_system.load_sound_into_system_for_playback("flag", "assets/audio/flag/flag_0.mp3");*/
+    /*sound_system.load_sound_into_system_for_playback("success", "assets/audio/success.mp3");*/
+    /*sound_system.load_sound_into_system_for_playback("explosion", "assets/audio/explosion.mp3");*/
+
+    /*sound_system.create_sound_source("cell");*/
 
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
@@ -457,6 +538,7 @@ int main() {
     std::vector<double> game_times;
     double total_time = 0.0;
     int games_played = 0;
+    int games_threshold = 1;
 
     // Main game loop
     while (!glfwWindowShouldClose(window) and !user_requested_quit) {
@@ -477,9 +559,6 @@ int main() {
             }
 
             process_key_pressed_this_tick(curr_ui, key_pressed_this_tick);
-
-            if (curr_state == END_GAME) {
-            }
 
             for (auto &tb : curr_ui.get_text_boxes()) {
                 batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(
@@ -518,7 +597,7 @@ int main() {
 
         if (field_clear(board)) {
             std::cout << "field was clear" << std::endl;
-            sound_system.play_sound("cell", "success");
+                sound_system.queue_sound(SoundType::SUCCESS, center);
 
             // Calculate elapsed time and store it
             if (game_started) {
@@ -526,6 +605,22 @@ int main() {
                 game_times.push_back(game_time);
                 total_time += game_time;
                 games_played++;
+            }
+
+            if (games_played >= games_threshold) {
+                games_played = 0;
+
+                float avg_time = 0;
+                for (auto& i : game_times) {
+                    avg_time += i;
+                }
+                avg_time /= games_threshold;
+
+                std::cout << avg_time << "\n";
+                game_times.clear();
+                game_state_to_ui.insert_or_assign(END_GAME, create_ending_page(window, font_atlas, curr_state, avg_time));
+                curr_state = END_GAME;
+                continue;
             }
 
             game_started = false; // Reset game start flag for the next game
@@ -539,7 +634,7 @@ int main() {
         }
 
         if (!sucessfully_mined) {
-            sound_system.play_sound("cell", "explosion");
+                sound_system.queue_sound(SoundType::EXPLOSION, center);
             std::cout << "you died" << std::endl;
 
             // Calculate elapsed time and store it
@@ -635,7 +730,8 @@ int main() {
                             std::cout << "mining all" << std::endl;
                             sucessfully_mined = reveal_adjacent_cells(board, row_idx, col_idx);
                         }
-                        sound_system.play_sound("cell", "mine");
+                            // todo use positional sound based on row and col idx later
+                        sound_system.queue_sound(get_random_mine_sound(), center);
                     }
 
                     if (trying_to_flag_all) {
@@ -648,7 +744,7 @@ int main() {
                             std::cout << "flagging all" << std::endl;
                             set_adjacent_cells_flags(board, row_idx, col_idx, true);
                         }
-                        sound_system.play_sound("cell", "flag");
+                        sound_system.queue_sound(get_random_flag_sound(), center);
                     }
 
                     if (trying_to_unflag_all) {
@@ -720,6 +816,8 @@ int main() {
         flag_one_pressed_last_tick = flag_one_pressed;
         mine_all_pressed_last_tick = mine_all_pressed;
         mine_one_pressed_last_tick = mine_one_pressed;
+
+        sound_system.play_all_sounds();
 
         glfwSwapBuffers(window);
         glfwPollEvents();
