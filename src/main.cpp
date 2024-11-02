@@ -133,21 +133,21 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         }
     }
 
-    if (key == GLFW_KEY_F) {
-        if (action == GLFW_PRESS) {
+    if (key == GLFW_KEY_R) {
+        if (action == GLFW_PRESS && left_shift_pressed) {
            unflag_all_pressed = true;
         }
         if (action == GLFW_RELEASE) {
-            unflag_all_pressed = true;
+            unflag_all_pressed = false;
         }
     }
 
     if (key == GLFW_KEY_F) {
         if (action == GLFW_PRESS) {
             if (left_shift_pressed) {
-                flag_one_pressed = true;
-            } else {
                 flag_all_pressed = true;
+            } else {
+                flag_one_pressed = true;
             }
         }
         if (action == GLFW_RELEASE) {
@@ -265,24 +265,50 @@ UI create_main_menu(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_s
     return main_menu_ui;
 }
 
-UI create_end_game_page(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state) {
-    UI end_game_page(font_atlas);
-
-    
-
-    return end_game_page;
-}
-
-UI create_options_page(FontAtlas &font_atlas, GameState &curr_state) {
+UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &board, float &mine_percentage,
+                       int &num_cells_x, int &num_cells_y, int &mine_count) {
     UI in_game_ui(font_atlas);
 
-    std::function<void(std::string)> on_confirm = [&](std::string contents) { std::cout << contents << std::endl; };
-    std::function<void()> on_back = [&]() { curr_state = OPTIONS_PAGE; };
-    std::function<void()> on_play = [&]() { curr_state = IN_GAME; };
+    std::function<void(std::string)> on_width_confirm = [&](std::string contents) {
+        num_cells_x = std::stoi(contents);
+        mine_count = num_cells_x * num_cells_y * mine_percentage;
+        std::cout << "mine_percentage: " << mine_percentage << std::endl;
+        std::cout << "num_cells_x: " << num_cells_x << std::endl;
+        std::cout << "num_cells_y: " << num_cells_y << std::endl;
+        std::cout << "mine_count: " << mine_count << std::endl;
+    };
+    std::function<void(std::string)> on_height_confirm = [&](std::string contents) {
+        num_cells_y = std::stoi(contents);
+        mine_count = num_cells_x * num_cells_y * mine_percentage;
+        std::cout << "mine_percentage: " << mine_percentage << std::endl;
+        std::cout << "num_cells_x: " << num_cells_x << std::endl;
+        std::cout << "num_cells_y: " << num_cells_y << std::endl;
+        std::cout << "mine_count: " << mine_count << std::endl;
+    };
+    std::function<void(std::string)> on_mine_count_confirm = [&](std::string contents) {
+        mine_count = std::stoi(contents);
+        mine_percentage = static_cast<float>(mine_count) / static_cast<float>(num_cells_x * num_cells_y);
+        std::cout << "mine_percentage: " << mine_percentage << std::endl;
+        std::cout << "num_cells_x: " << num_cells_x << std::endl;
+        std::cout << "num_cells_y: " << num_cells_y << std::endl;
+        std::cout << "mine_count: " << mine_count << std::endl;
+    };
+    std::function<void()> on_back = [&]() { curr_state = MAIN_MENU; };
+    std::function<void()> on_play = [&]() {
+        std::cout << "Generating board with: " << std::endl;
+        std::cout << "mine_percentage: " << mine_percentage << std::endl;
+        std::cout << "num_cells_x: " << num_cells_x << std::endl;
+        std::cout << "num_cells_y: " << num_cells_y << std::endl;
+        std::cout << "mine_count: " << mine_count << std::endl;
+        // TODO: NGS config
+        board = generate_board(mine_count, num_cells_x, num_cells_y);
+        curr_state = IN_GAME;
+    };
 
-    in_game_ui.add_input_box(on_confirm, "Board Width", 0, 0.25, 1, 0.25, colors.grey, colors.lightgrey);
-    in_game_ui.add_input_box(on_confirm, "Board Height", 0, 0.0, 1, 0.25, colors.grey, colors.lightgrey);
-    in_game_ui.add_input_box(on_confirm, "Number of Mines", 0, -0.25, 1, 0.25, colors.grey, colors.lightgrey);
+    in_game_ui.add_input_box(on_width_confirm, "Board Width", 0, 0.25, 1, 0.25, colors.grey, colors.lightgrey);
+    in_game_ui.add_input_box(on_height_confirm, "Board Height", 0, 0.0, 1, 0.25, colors.grey, colors.lightgrey);
+    in_game_ui.add_input_box(on_mine_count_confirm, "Number of Mines", 0, -0.25, 1, 0.25, colors.grey,
+                             colors.lightgrey);
     in_game_ui.add_clickable_textbox(on_play, "Start Game", 0.65, -0.65, 0.5, 0.5, colors.seagreen, colors.grey);
     in_game_ui.add_clickable_textbox(on_back, "Back to Main Menu", -0.65, -0.65, 0.5, 0.5, colors.seagreen,
                                      colors.grey);
@@ -292,7 +318,6 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state) {
 
 int main() {
     GameState curr_state = MAIN_MENU;
-    std::vector<float> game_times;
 
     float mine_percentage = 0.15;
     int num_cells_x = 10;
@@ -407,8 +432,10 @@ int main() {
     shader_cache.set_uniform(ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT,
                              ShaderUniformVariable::EDGE_TRANSITION_WIDTH, edge_transition);
 
-    std::unordered_map<GameState, UI> game_state_to_ui = {{MAIN_MENU, create_main_menu(window, font_atlas, curr_state)},
-                                                          {OPTIONS_PAGE, create_options_page(font_atlas, curr_state)}};
+    std::unordered_map<GameState, UI> game_state_to_ui = {
+        {MAIN_MENU, create_main_menu(window, font_atlas, curr_state)},
+        {OPTIONS_PAGE,
+         create_options_page(font_atlas, curr_state, board, mine_percentage, num_cells_x, num_cells_y, mine_count)}};
 
     double previous_time = glfwGetTime();
     int frame_count = 0;
@@ -558,19 +585,25 @@ int main() {
                     graphical_rect.center.x, graphical_rect.center.y, graphical_rect.width, graphical_rect.height);
                 std::vector<unsigned int> rectangle_indices = generate_rectangle_indices();
 
+                std::string text;
                 glm::vec3 rectangle_color;
                 if (cell.is_revealed) {
-                    // text_renderer.render_text(std::to_string(cell.adjacent_mines), graphical_rect.center, 1,
-                    //                           text_color);
+                    text = std::to_string(cell.adjacent_mines);
                     rectangle_color = mine_count_to_color.at(cell.adjacent_mines);
                 } else if (cell.is_flagged) {
-                    // text_renderer.render_text("F", graphical_rect.center, 1, flag_text_color / 255.0f);
+                    text = "F";
                     rectangle_color = flagged_cell_color;
                 } else if (cell.safe_start) {
-                    // text_renderer.render_text("X", graphical_rect.center, 1, text_color / 255.0f);
+                    text = "X";
                     rectangle_color = ngs_start_pos_color;
                 } else {
+                    text = "";
                     rectangle_color = unrevelead_cell_color;
+                }
+
+                if (text != "" && text != "0") {
+                    TextMesh text_mesh = font_atlas.generate_text_mesh_size_constraints(text, graphical_rect.center.x, graphical_rect.center.y, graphical_rect.width, graphical_rect.height);
+                    batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(text_mesh.indices, text_mesh.vertex_positions, text_mesh.texture_coordinates);
                 }
 
                 std::vector<glm::vec3> rectangle_colors = generate_colors_for_indices({rectangle_color});
@@ -584,8 +617,7 @@ int main() {
                     bool trying_to_flag_all =
                         (rmb_pressed && !rmb_pressed_last_tick) || (flag_all_pressed && !flag_all_pressed_last_tick);
 
-                    bool trying_to_unflag_all =
-                        (rmb_pressed && !rmb_pressed_last_tick) || (unflag_all_pressed && !unflag_all_pressed_last_tick);
+                    bool trying_to_unflag_all = unflag_all_pressed && !unflag_all_pressed_last_tick;
 
                     if (trying_to_mine_all) {
                         int row_idx = flat_idx / row.size();
@@ -614,16 +646,11 @@ int main() {
                         sound_system.play_sound("cell", "flag");
                     }
 
-                    if (trying_to_flag_all) {
+                    if (trying_to_unflag_all) {
                         int row_idx = flat_idx / row.size();
                         int col_idx = flat_idx % row.size();
-                        if (!cell.is_revealed) {
-                            std::cout << "unflagging one" << std::endl;
-                            toggle_flag_cell(board, row_idx, col_idx);
-                        } else {
-                            std::cout << "unflagging all" << std::endl;
-                            set_adjacent_cells_flags(board, row_idx, col_idx, false);
-                        }
+                        std::cout << "unflagging all" << std::endl;
+                        set_adjacent_cells_flags(board, row_idx, col_idx, false);
                         // sound_system.play_sound("cell", "unflag");
                     }
                 }
@@ -632,6 +659,7 @@ int main() {
         }
 
         batcher.absolute_position_with_colored_vertex_shader_batcher.draw_everything();
+        batcher.transform_v_with_signed_distance_field_text_shader_batcher.draw_everything();
 
         // Render FPS
         std::stringstream fps_ss;
