@@ -176,7 +176,8 @@ UI create_main_menu(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_s
 }
 
 UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &board, float &mine_percentage,
-                       int &num_cells_x, int &num_cells_y, int &mine_count, std::vector<Rectangle> &grid_rectangles) {
+                       int &num_cells_x, int &num_cells_y, int &mine_count, std::vector<Rectangle> &grid_rectangles,
+                       int &games_threshold) {
     UI in_game_ui(font_atlas);
 
     std::function<void(std::string)> on_width_confirm = [&](std::string contents) {
@@ -185,38 +186,26 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
         std::cout << contents.size() << std::endl;
         num_cells_x = std::stoi(contents);
         mine_count = num_cells_x * num_cells_y * mine_percentage;
-        std::cout << "mine_percentage: " << mine_percentage << std::endl;
-        std::cout << "num_cells_x: " << num_cells_x << std::endl;
-        std::cout << "num_cells_y: " << num_cells_y << std::endl;
-        std::cout << "mine_count: " << mine_count << std::endl;
     };
     std::function<void(std::string)> on_height_confirm = [&](std::string contents) {
         if (contents.empty())
             return;
         num_cells_y = std::stoi(contents);
         mine_count = num_cells_x * num_cells_y * mine_percentage;
-        std::cout << "mine_percentage: " << mine_percentage << std::endl;
-        std::cout << "num_cells_x: " << num_cells_x << std::endl;
-        std::cout << "num_cells_y: " << num_cells_y << std::endl;
-        std::cout << "mine_count: " << mine_count << std::endl;
     };
     std::function<void(std::string)> on_mine_count_confirm = [&](std::string contents) {
         if (contents.empty())
             return;
         mine_count = std::stoi(contents);
         mine_percentage = static_cast<float>(mine_count) / static_cast<float>(num_cells_x * num_cells_y);
-        std::cout << "mine_percentage: " << mine_percentage << std::endl;
-        std::cout << "num_cells_x: " << num_cells_x << std::endl;
-        std::cout << "num_cells_y: " << num_cells_y << std::endl;
-        std::cout << "mine_count: " << mine_count << std::endl;
+    };
+    std::function<void(std::string)> on_game_count_confirm = [&](std::string contents) {
+        if (contents.empty())
+            return;
+        games_threshold = std::stoi(contents);
     };
     std::function<void()> on_back = [&]() { curr_state = MAIN_MENU; };
     std::function<void()> on_play = [&]() {
-        std::cout << "Generating board with: " << std::endl;
-        std::cout << "mine_percentage: " << mine_percentage << std::endl;
-        std::cout << "num_cells_x: " << num_cells_x << std::endl;
-        std::cout << "num_cells_y: " << num_cells_y << std::endl;
-        std::cout << "mine_count: " << mine_count << std::endl;
         // TODO: NGS config
         board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
         grid_rectangles = generate_grid_rectangles(center, width, height, num_cells_x, num_cells_y, spacing);
@@ -227,6 +216,7 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
     in_game_ui.add_input_box(on_height_confirm, "Board Height", 0, 0.0, 1, 0.25, colors.grey, colors.lightgrey);
     in_game_ui.add_input_box(on_mine_count_confirm, "Number of Mines", 0, -0.25, 1, 0.25, colors.grey,
                              colors.lightgrey);
+    in_game_ui.add_input_box(on_game_count_confirm, "Number of Games", 0, -0.5, 1, 0.25, colors.grey, colors.lightgrey);
     in_game_ui.add_clickable_textbox(on_play, "Start Game", 0.65, -0.65, 0.5, 0.5, colors.seagreen, colors.grey);
     in_game_ui.add_clickable_textbox(on_back, "Back to Main Menu", -0.65, -0.65, 0.5, 0.5, colors.seagreen,
                                      colors.grey);
@@ -282,6 +272,8 @@ int main() {
     int mine_count = num_cells_x * num_cells_y * mine_percentage;
     bool no_guess = true;
     bool play_field_from_path = false;
+    int games_played = 0;
+    int games_threshold = 1;
     /*std::string file_path = "assets/minefields/checkerboard.png"; // Change this to your desired path*/
     std::string file_path = "";
 
@@ -361,7 +353,7 @@ int main() {
     std::unordered_map<GameState, UI> game_state_to_ui = {
         {MAIN_MENU, create_main_menu(window, font_atlas, curr_state)},
         {OPTIONS_PAGE, create_options_page(font_atlas, curr_state, board, mine_percentage, num_cells_x, num_cells_y,
-                                           mine_count, grid_rectangles)}};
+                                           mine_count, grid_rectangles, games_threshold)}};
 
     std::function<void(unsigned int)> char_callback = [&](unsigned int codepoint) {};
 
@@ -537,8 +529,6 @@ int main() {
     bool game_started = false;
     std::vector<double> game_times;
     double total_time = 0.0;
-    int games_played = 0;
-    int games_threshold = 1;
 
     // Main game loop
     while (!glfwWindowShouldClose(window) and !user_requested_quit) {
