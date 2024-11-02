@@ -86,6 +86,9 @@ bool left_shift_pressed = false;
 bool flag_all_pressed = false;
 bool flag_all_pressed_last_tick = false;
 
+bool unflag_all_pressed = false;
+bool unflag_all_pressed_last_tick = false;
+
 bool flag_one_pressed = false;
 bool flag_one_pressed_last_tick = false;
 
@@ -129,12 +132,21 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
         }
     }
 
+    if (key == GLFW_KEY_R) {
+        if (action == GLFW_PRESS && left_shift_pressed) {
+           unflag_all_pressed = true;
+        }
+        if (action == GLFW_RELEASE) {
+            unflag_all_pressed = false;
+        }
+    }
+
     if (key == GLFW_KEY_F) {
         if (action == GLFW_PRESS) {
             if (left_shift_pressed) {
-                flag_one_pressed = true;
-            } else {
                 flag_all_pressed = true;
+            } else {
+                flag_one_pressed = true;
             }
         }
         if (action == GLFW_RELEASE) {
@@ -237,7 +249,7 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
     return board;
 }
 
-enum GameState { MAIN_MENU, OPTIONS_PAGE, IN_GAME };
+enum GameState { MAIN_MENU, OPTIONS_PAGE, IN_GAME, END_GAME };
 
 UI create_main_menu(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state) {
     UI main_menu_ui(font_atlas);
@@ -305,6 +317,7 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
 
 int main() {
     GameState curr_state = MAIN_MENU;
+
     float mine_percentage = 0.15;
     int num_cells_x = 10;
     int num_cells_y = 10;
@@ -456,6 +469,10 @@ int main() {
 
             process_key_pressed_this_tick(curr_ui);
 
+            if (curr_state == END_GAME) {
+                
+            }
+
             for (auto &tb : curr_ui.get_text_boxes()) {
                 batcher.transform_v_with_signed_distance_field_text_shader_batcher.queue_draw(
                     tb.text_drawing_data.indices, tb.text_drawing_data.xyz_positions,
@@ -597,6 +614,8 @@ int main() {
                     bool trying_to_flag_all =
                         (rmb_pressed && !rmb_pressed_last_tick) || (flag_all_pressed && !flag_all_pressed_last_tick);
 
+                    bool trying_to_unflag_all = unflag_all_pressed && !unflag_all_pressed_last_tick;
+
                     if (trying_to_mine_all) {
                         int row_idx = flat_idx / row.size();
                         int col_idx = flat_idx % row.size();
@@ -619,9 +638,17 @@ int main() {
                             toggle_flag_cell(board, row_idx, col_idx);
                         } else {
                             std::cout << "flagging all" << std::endl;
-                            flag_adjacent_cells(board, row_idx, col_idx);
+                            set_adjacent_cells_flags(board, row_idx, col_idx, true);
                         }
                         sound_system.play_sound("cell", "flag");
+                    }
+
+                    if (trying_to_unflag_all) {
+                        int row_idx = flat_idx / row.size();
+                        int col_idx = flat_idx % row.size();
+                        std::cout << "unflagging all" << std::endl;
+                        set_adjacent_cells_flags(board, row_idx, col_idx, false);
+                        // sound_system.play_sound("cell", "unflag");
                     }
                 }
                 flat_idx += 1;
