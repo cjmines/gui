@@ -316,6 +316,23 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
     return in_game_ui;
 }
 
+UI create_ending_page(GLFWwindow *window, FontAtlas &font_atlas, GameState &curr_state, double avg_time) {
+    UI end_ui(font_atlas);
+
+    std::function<void()> on_play = [&]() { curr_state = OPTIONS_PAGE; };
+    std::function<void()> on_quit = [&]() { glfwSetWindowShouldClose(window, GLFW_TRUE); };
+
+    std::stringstream stream;
+    stream << std::fixed << std::setprecision(2) << avg_time;
+
+    end_ui.add_textbox("Game End", 0, 0.75, 1, 0.25, colors.grey);
+    end_ui.add_textbox("Average game time: " + stream.str() + " seconds", 0, 0.50, 0.6, 0.25, colors.yellow);
+    end_ui.add_clickable_textbox(on_play, "Replay", 0.65, -0.65, 0.5, 0.5, colors.darkgreen, colors.green);
+    end_ui.add_clickable_textbox(on_quit, "Quit", -0.65, -0.65, 0.5, 0.5, colors.darkred, colors.red);
+
+    return end_ui;
+}
+
 SoundType get_random_mine_sound() {
     static std::vector<SoundType> mine_sounds = {SoundType::MINE_0, SoundType::MINE_1, SoundType::MINE_2,
                                                  SoundType::MINE_3, SoundType::MINE_4, SoundType::MINE_5,
@@ -428,7 +445,7 @@ int main() {
         {SoundType::MINE_6, "assets/audio/mine/mine_6.mp3"}, {SoundType::SUCCESS, "assets/audio/success.mp3"},
         {SoundType::EXPLOSION, "assets/audio/explosion.mp3"}};
 
-    const unsigned int max_concurrent_sounds = 100;
+    int max_concurrent_sounds = 100;
 
     SoundSystem sound_system(max_concurrent_sounds, sound_type_to_file);
 
