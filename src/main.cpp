@@ -266,8 +266,6 @@ SoundType get_random_flag_sound() {
 }
 
 int main() {
-    GameState curr_state = MAIN_MENU;
-
     float mine_percentage = 0.01;
     int num_cells_x = 10;
     int num_cells_y = 10;
