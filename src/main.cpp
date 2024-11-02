@@ -135,7 +135,7 @@ void key_callback(GLFWwindow *window, int key, int scancode, int action, int mod
 
     if (key == GLFW_KEY_R) {
         if (action == GLFW_PRESS && left_shift_pressed) {
-           unflag_all_pressed = true;
+            unflag_all_pressed = true;
         }
         if (action == GLFW_RELEASE) {
             unflag_all_pressed = false;
@@ -248,6 +248,30 @@ Board generate_ng_solvable_board(int mine_count, int num_cells_x, int num_cells_
     board[row][col].safe_start = true;
 
     return board;
+}
+
+GLFWcursor *create_custom_cursor(const char *image_path, int hotspot_x, int hotspot_y) {
+    // Load image data using stb_image
+    int width, height, channels;
+    unsigned char *data = stbi_load(image_path, &width, &height, &channels, 4); // 4 = RGBA channels
+    if (!data) {
+        std::cerr << "Failed to load cursor image: " << image_path << std::endl;
+        return nullptr;
+    }
+
+    // Create an image for the GLFW cursor
+    GLFWimage image;
+    image.width = width;
+    image.height = height;
+    image.pixels = data;
+
+    // Create the cursor with the given hotspot
+    GLFWcursor *cursor = glfwCreateCursor(&image, hotspot_x, hotspot_y);
+
+    // Free image data after cursor creation
+    stbi_image_free(data);
+
+    return cursor;
 }
 
 enum GameState { MAIN_MENU, OPTIONS_PAGE, IN_GAME, END_GAME };
@@ -410,6 +434,11 @@ int main() {
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetKeyCallback(window, key_callback);
 
+    GLFWcursor *custom_cursor = create_custom_cursor("assets/crosshair/cross_64.png", 32, 32);
+    if (custom_cursor) {
+        glfwSetCursor(window, custom_cursor);
+    }
+
     std::vector<ShaderType> requested_shaders = {ShaderType::ABSOLUTE_POSITION_WITH_COLORED_VERTEX,
                                                  ShaderType::TRANSFORM_V_WITH_SIGNED_DISTANCE_FIELD_TEXT};
     ShaderCache shader_cache(requested_shaders);
@@ -505,7 +534,6 @@ int main() {
             process_key_pressed_this_tick(curr_ui);
 
             if (curr_state == END_GAME) {
-                
             }
 
             for (auto &tb : curr_ui.get_text_boxes()) {
