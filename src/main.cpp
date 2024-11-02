@@ -384,7 +384,7 @@ SoundType get_random_flag_sound() {
 int main() {
     GameState curr_state = MAIN_MENU;
 
-    float mine_percentage = 0.10;
+    float mine_percentage = 0.01;
     int num_cells_x = 10;
     int num_cells_y = 10;
     int mine_count = num_cells_x * num_cells_y * mine_percentage;
@@ -529,7 +529,7 @@ int main() {
     std::vector<double> game_times;
     double total_time = 0.0;
     int games_played = 0;
-    int games_threshold = 1;
+    int games_threshold = 2;
 
     // Main game loop
     while (!glfwWindowShouldClose(window) and !user_requested_quit) {
@@ -587,22 +587,22 @@ int main() {
         }
 
         if (field_clear(board)) {
+            game_started = false;
             std::cout << "field was clear" << std::endl;
                 sound_system.queue_sound(SoundType::SUCCESS, center);
 
             // Calculate elapsed time and store it
-            if (game_started) {
-                double game_time = glfwGetTime() - game_start_time;
-                game_times.push_back(game_time);
-                total_time += game_time;
-                games_played++;
-            }
+            double game_time = glfwGetTime() - game_start_time;
+            game_times.push_back(game_time);
+            total_time += game_time;
+            games_played++;
 
             if (games_played >= games_threshold) {
                 games_played = 0;
 
                 float avg_time = 0;
                 for (auto& i : game_times) {
+                    std::cout << "Game Times " << std::to_string(i) << "\n";
                     avg_time += i;
                 }
                 avg_time /= games_threshold;
@@ -611,10 +611,9 @@ int main() {
                 game_times.clear();
                 game_state_to_ui.insert_or_assign(END_GAME, create_ending_page(window, font_atlas, curr_state, avg_time));
                 curr_state = END_GAME;
+                game_started = false;
                 continue;
             }
-
-            game_started = false; // Reset game start flag for the next game
 
             // Generate a new board after winning
             if (no_guess) {
