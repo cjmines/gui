@@ -208,7 +208,7 @@ UI create_options_page(FontAtlas &font_atlas, GameState &curr_state, Board &boar
     std::function<void()> on_play = [&]() {
         // TODO: NGS config
         board = generate_ng_solvable_board(mine_count, num_cells_x, num_cells_y);
-        grid_rectangles = generate_grid_rectangles(center, width, height, num_cells_x, num_cells_y, spacing);
+        grid_rectangles = generate_grid_rectangles(center, width, height, num_cells_y, num_cells_x, spacing);
         curr_state = IN_GAME;
     };
 
